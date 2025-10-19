@@ -96,6 +96,12 @@ namespace GDELib
                 YList.Add(n);
             }
         }
+        public int[,] MatrixData(string code)
+        {
+            string[] sp = code.Split('_');
+            int i = Convert.ToInt32(sp[1]);
+            return YList[i].mas;
+        }
         public void Dell(int i)
         {
             YList.RemoveAt(i);

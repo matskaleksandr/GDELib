@@ -18,6 +18,7 @@ namespace GDELib
         private string Nfilestruct = "";
         private string Nfiledata = "";
         private DEObject DE;
+        private DESMini DESM;
         private bool TOne;
         public DESaver(DEObject _DE, string _pathsave, string NFS, string NFD, bool _TOne, string _pathcash)
         {
@@ -185,6 +186,10 @@ namespace GDELib
                             {
                                 writer1.Write(0);
                             }
+                        }
+                        if (DE.YList[i].ya == Yacheyka.type.mas)
+                        {
+                            DESM.SaveMatrix(DE.YList[i].mas, writer1);
                         }
                     }
                 }
@@ -500,6 +505,7 @@ namespace GDELib
                                     }
                                 }
                             }
+
                         }
                     }
                 }
@@ -630,6 +636,19 @@ namespace GDELib
                                             NEl = 0;
                                         return result;
                                     }
+                                }
+                            }
+                            if (types[i] == "mas")
+                            {
+                                int[,] masdata = DESM.ReadMatrix(reader);
+                                DE.CreateCell(masdata);
+                                if (i == NEl)
+                                {
+                                    result = $"matrix_{i}";
+                                    NEl++;
+                                    if (NEl == all)
+                                        NEl = 0;
+                                    return result;
                                 }
                             }
                         }

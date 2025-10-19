@@ -50,6 +50,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DESaver.cs" />
+    <Compile Include="DESMini.cs" />
     <Compile Include="Yacheyka.cs" />
     <Compile Include="DEObject.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
