@@ -86,6 +86,16 @@ namespace GDELib
                 
             }
         }
+        public void CreateCell(int[,] matrix)
+        {
+            bool pr1 = true;
+            Yacheyka.type k = Yacheyka.type.mas;         
+            if (pr1)
+            {
+                Yacheyka n = new Yacheyka(this, YList.Count, k, null, matrix);
+                YList.Add(n);
+            }
+        }
         public void Dell(int i)
         {
             YList.RemoveAt(i);

@@ -15,6 +15,7 @@ namespace GDELib
             str = 2,
             booling = 3,
             files = 4,
+            mas = 5,
         }
         public int i = 0;
         public string tip1 = "0"; //int
@@ -22,10 +23,14 @@ namespace GDELib
         public string tip3 = ""; //string
         public bool tip4 = false; //bool
         public string tip5 = ""; //file (path)
+        public int[,] mas = new int[0, 0]; //matrix
+
+        public int[] ints = new int[0];//внутренний тип для сокрещния int
+        
         //соложные типы
         public type ya = type.integer;
         private DEObject DE;
-        public Yacheyka(DEObject _DE, int j, type k, string autotip = "")
+        public Yacheyka(DEObject _DE, int j, type k, string autotip = "", int[,] matrix = null)
         { 
             DE = _DE;
             i = j;//ID
@@ -48,6 +53,10 @@ namespace GDELib
             if(k == type.files)
             {
                 tip5 = autotip;
+            }
+            if (k == type.mas)
+            {
+                mas = matrix;
             }
             ya = k;
         }
