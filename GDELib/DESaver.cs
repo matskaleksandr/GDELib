@@ -28,6 +28,7 @@ namespace GDELib
             Nfiledata = NFD;
             TOne = _TOne;
             pathcash = _pathcash;
+            DESM = new DESMini();
         }
         public void Save()
         {
