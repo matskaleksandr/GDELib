@@ -384,7 +384,6 @@ namespace GDELib
             if (mappedKeys.Count > MAX_MAPPED)
                 throw new ArgumentException($"mappedKeys.Count must be <= {MAX_MAPPED}");
 
-            // Словарь value -> индекс (только для mappedKeys)
             Dictionary<int, int> valueToIndex = new Dictionary<int, int>();
             for (int i = 0; i < mappedKeys.Count; i++)
                 valueToIndex[mappedKeys[i]] = i;
@@ -399,7 +398,7 @@ namespace GDELib
             int currentByte = 0;
             int bitPos = 0; // 0 или 4
 
-            // Вспомогательная лямбда — дописать ниббл в поток
+            // Записать ниббл (0..15) в поток
             Action<int> AppendNibble = (nib) =>
             {
                 currentByte |= (nib & 0x0F) << bitPos;
@@ -430,26 +429,34 @@ namespace GDELib
                         // Пишем маркер RAW
                         AppendNibble(RESERVED_RAW_NIBBLE);
 
-                        // Если осталась половина байта — дополняем нулем, чтобы выровнять к байту
-                        if (bitPos != 0)
-                        {
-                            AppendNibble(0); // запишет текущий байт и сбросит bitPos
-                        }
+                        // Подготовим минимальное количество байт для little-endian представления
+                        byte[] full = BitConverter.GetBytes(value); // little-endian
+                        int useBytes = 4;
+                        // убираем старшие нули
+                        while (useBytes > 1 && full[useBytes - 1] == 0)
+                            useBytes--;
 
-                        // Затем пишем само 32-битное значение (little-endian)
-                        writer.Write(value);
+                        // Записываем (len-1) в следующий ниббл (0..3)
+                        AppendNibble(useBytes - 1);
+
+                        // Записываем сами байты (little-endian), каждый байт как два ниббла
+                        for (int b = 0; b < useBytes; b++)
+                        {
+                            byte by = full[b];
+                            AppendNibble(by & 0x0F);
+                            AppendNibble((by >> 4) & 0x0F);
+                        }
                     }
                 }
             }
 
-            // Если остался неполный байт — дописываем его
+            // Дописываем неполный байт, если есть
             if (bitPos != 0)
             {
                 writer.Write((byte)currentByte);
             }
         }
 
-        // Чтение матрицы: mappedKeys передаётся извне (если null — ошибка). mappedKeys.Count <= MAX_MAPPED
         public static int[,] LoadMatrixFromIndices(BinaryReader reader, List<int> mappedKeys)
         {
             if (mappedKeys == null) throw new ArgumentNullException(nameof(mappedKeys));
@@ -492,15 +499,22 @@ namespace GDELib
                     int nib = ReadNibble();
                     if (nib == RESERVED_RAW_NIBBLE)
                     {
-                        // Выравнивание к байту: если остался второй ниббл, просто отбрасываем его (мы писали ноль)
-                        if (nibbleOffset != 0 || hasByte)
+                        // читаем ниббл длины
+                        int lenNib = ReadNibble();
+                        int useBytes = lenNib + 1; // 1..4
+
+                        byte[] bytes = new byte[useBytes];
+                        for (int b = 0; b < useBytes; b++)
                         {
-                            hasByte = false;
-                            nibbleOffset = 0;
+                            int low = ReadNibble();
+                            int high = ReadNibble();
+                            bytes[b] = (byte)(low | (high << 4));
                         }
 
-                        // Теперь читаем int32
-                        int val = reader.ReadInt32();
+                        // дополняем до 4 байт (старшие байты = 0), затем восстановим int
+                        byte[] full = new byte[4];
+                        Array.Copy(bytes, 0, full, 0, useBytes);
+                        int val = BitConverter.ToInt32(full, 0);
                         matrix[i, j] = val;
                     }
                     else
@@ -519,6 +533,7 @@ namespace GDELib
 
             return matrix;
         }
+
 
         public static void SaveMatrix(BinaryWriter writer, int[,] matrix)
         {
