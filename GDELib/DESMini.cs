@@ -373,12 +373,9 @@ namespace GDELib
 
     static internal class MatrixIndexStorage
     {
-        // Максимум ключей, которые можно кодировать в 4 бита.
-        // Резервируем ниббл 0xE (14) как маркер "далее идёт int32 в явном виде".
-        public const int MAX_MAPPED = 14;
+        public const int MAX_MAPPED = 14; 
         const int RESERVED_RAW_NIBBLE = 0xE;
 
-        // Записываем матрицу, используя заранее заданные mappedKeys (порядок важен).
         public static void SaveMatrixAsIndices(BinaryWriter writer, int[,] matrix, List<int> mappedKeys)
         {
             if (mappedKeys.Count > MAX_MAPPED)
@@ -534,57 +531,356 @@ namespace GDELib
             return matrix;
         }
 
+        // Сериализация byte[] с картой до MAX_MAPPED наиболее частых байтов (аналог SaveMatrixAsIndices, но для байтов)
+        public static void SaveBytesAsIndices(BinaryWriter writer, byte[] data, List<int> mappedBytes)
+        {
+            if (mappedBytes.Count > MAX_MAPPED)
+                throw new ArgumentException($"mappedBytes.Count must be <= {MAX_MAPPED}");
+
+            Dictionary<int, int> valueToIndex = new Dictionary<int, int>();
+            for (int i = 0; i < mappedBytes.Count; i++)
+                valueToIndex[mappedBytes[i]] = i;
+
+            // Буфер нибблов
+            int currentByte = 0;
+            int bitPos = 0;
+
+            Action<int> AppendNibble = (nib) =>
+            {
+                currentByte |= (nib & 0x0F) << bitPos;
+                bitPos += 4;
+                if (bitPos == 8)
+                {
+                    writer.Write((byte)currentByte);
+                    currentByte = 0;
+                    bitPos = 0;
+                }
+            };
+
+            for (int i = 0; i < data.Length; i++)
+            {
+                int v = data[i]; // 0..255
+                if (valueToIndex.TryGetValue(v, out int idx))
+                {
+                    AppendNibble(idx);
+                }
+                else
+                {
+                    // RAW marker
+                    AppendNibble(RESERVED_RAW_NIBBLE);
+                    // Для байта: сразу запишем сам байт как два ниббла (low, high)
+                    byte by = (byte)v;
+                    AppendNibble(by & 0x0F);
+                    AppendNibble((by >> 4) & 0x0F);
+                }
+            }
+
+            if (bitPos != 0)
+                writer.Write((byte)currentByte);
+        }
+
+        public static byte[] LoadBytesFromIndices(BinaryReader reader, List<int> mappedBytes, long expectedLengthHint = -1)
+        {
+            if (mappedBytes == null) throw new ArgumentNullException(nameof(mappedBytes));
+            if (mappedBytes.Count > MAX_MAPPED) throw new ArgumentException($"mappedBytes.Count must be <= {MAX_MAPPED}");
+
+            // Функция чтения ниббла из потока
+            bool hasByte = false;
+            byte currentByte = 0;
+            int nibbleOffset = 0; // 0 или 4
+
+            Func<int> ReadNibble = () =>
+            {
+                if (!hasByte)
+                {
+                    int b = reader.ReadByte();
+                    currentByte = (byte)b;
+                    hasByte = true;
+                    nibbleOffset = 0;
+                }
+
+                int nibble = (currentByte >> nibbleOffset) & 0x0F;
+                nibbleOffset += 4;
+                if (nibbleOffset == 8)
+                {
+                    hasByte = false;
+                    nibbleOffset = 0;
+                }
+                return nibble;
+            };
+
+            var list = new List<byte>();
+
+            // Если мы знаем точную длину блока — можно читать строго столько значений.
+            // Но в общем случае вызывающий код должен знать когда остановиться (например, по длине матрицы).
+            // Здесь будем читать до тех пор, пока не вывалимся из потока — вызывающий код должен оборачивать в MemoryStream/ограниченный поток.
+            try
+            {
+                while (true)
+                {
+                    int nib = ReadNibble();
+                    if (nib == RESERVED_RAW_NIBBLE)
+                    {
+                        int low = ReadNibble();
+                        int high = ReadNibble();
+                        byte by = (byte)(low | (high << 4));
+                        list.Add(by);
+                    }
+                    else
+                    {
+                        if (nib < mappedBytes.Count)
+                            list.Add((byte)mappedBytes[nib]);
+                        else
+                            throw new InvalidDataException($"Encountered index {nib} but only {mappedBytes.Count} mapped bytes are present.");
+                    }
+                }
+            }
+            catch (EndOfStreamException)
+            {
+                // закончили чтение — нормально
+            }
+
+            return list.ToArray();
+        }
+
 
         public static void SaveMatrix(BinaryWriter writer, int[,] matrix)
         {
-            // Собираем частоты значений
+            // 1) Собираем частоты значений
             var freq = new Dictionary<int, int>();
             int rows = matrix.GetLength(0);
             int cols = matrix.GetLength(1);
             for (int i = 0; i < rows; i++)
-            {
                 for (int j = 0; j < cols; j++)
                 {
                     int v = matrix[i, j];
                     if (!freq.ContainsKey(v)) freq[v] = 0;
                     freq[v]++;
                 }
-            }
 
-            // Выбираем до MAX_MAPPED наиболее частых значений.
+            // 2) Выбираем mappedKeys (до MAX_MAPPED)
             var mappedKeys = freq
-                .OrderByDescending(kv => kv.Value)    // сначала по частоте
-                .ThenBy(kv => kv.Key)                 // при равной частоте — по значению
+                .OrderByDescending(kv => kv.Value)
+                .ThenBy(kv => kv.Key)
                 .Select(kv => kv.Key)
                 .Take(MAX_MAPPED)
-                .OrderBy(x => x) // детерминированный порядок по значению для стабильного соответствия индексов
+                .OrderBy(x => x)
                 .ToList();
 
-            // Строим trie только из mappedKeys (не пишем их отдельно)
-            ByteTrie trie = new ByteTrie();
-            foreach (var k in mappedKeys)
-                trie.Add(k);
+            // 3) Строим trie1 и сохраняем его
+            ByteTrie trie1 = new ByteTrie();
+            foreach (var k in mappedKeys) trie1.Add(k);
+            trie1.SaveTreeUltraCompact(writer);
 
-            // Сохраняем trie (ультра-компактный формат)
-            trie.SaveTreeUltraCompact(writer);
+            // 4) INT-DELTA: решаем, применять ли сдвиг по минимуму
+            bool hasNegative = false;
+            int minVal = int.MaxValue;
+            for (int i = 0; i < rows; i++)
+                for (int j = 0; j < cols; j++)
+                {
+                    int v = matrix[i, j];
+                    if (v < 0) hasNegative = true;
+                    if (v < minVal) minVal = v;
+                }
 
-            // Сохраняем саму матрицу как индексы, пользуясь mappedKeys (порядок должен быть восстановим из trie при чтении)
-            SaveMatrixAsIndices(writer, matrix, mappedKeys);
+            bool intDeltaPresent = (!hasNegative) && (minVal > 0);
+            int intDelta = intDeltaPresent ? minVal : 0;
+
+            writer.Write((byte)(intDeltaPresent ? 1 : 0));
+            if (intDeltaPresent) writer.Write(intDelta);
+
+            // 5) Подготовим трансформированную матрицу
+            int[,] matrixToWrite = matrix;
+            if (intDeltaPresent)
+            {
+                matrixToWrite = new int[rows, cols];
+                for (int i = 0; i < rows; i++)
+                    for (int j = 0; j < cols; j++)
+                        matrixToWrite[i, j] = matrix[i, j] - intDelta;
+            }
+
+            // 6) Сериализуем matrixToWrite в байтовый буфер
+            byte[] matrixDataBytes;
+            using (var ms = new MemoryStream())
+            using (var bw = new BinaryWriter(ms, Encoding.Default, true))
+            {
+                SaveMatrixAsIndices(bw, matrixToWrite, mappedKeys);
+                bw.Flush();
+                matrixDataBytes = ms.ToArray();
+            }
+
+            // 7) BYTE-DELTA: найти минимальный байт
+            int minByte = 255;
+            if (matrixDataBytes.Length == 0) minByte = 0;
+            else
+            {
+                foreach (var b in matrixDataBytes)
+                    if (b < minByte) minByte = b;
+            }
+
+            bool byteDeltaPresent = (minByte > 0);
+            byte byteDelta = (byte)(byteDeltaPresent ? minByte : 0);
+
+            // 8) Подготовка данных для второго этапа
+            byte[] shiftedBytes;
+            if (byteDeltaPresent)
+            {
+                shiftedBytes = new byte[matrixDataBytes.Length];
+                for (int i = 0; i < matrixDataBytes.Length; i++)
+                    shiftedBytes[i] = (byte)(matrixDataBytes[i] - byteDelta);
+            }
+            else
+            {
+                shiftedBytes = matrixDataBytes;
+            }
+
+            // Собираем частоты байтов и строим mappedBytes для trie2
+            var byteFreq = new Dictionary<int, int>();
+            foreach (var b in shiftedBytes)
+            {
+                int vb = b;
+                if (!byteFreq.ContainsKey(vb)) byteFreq[vb] = 0;
+                byteFreq[vb]++;
+            }
+
+            var mappedBytes = byteFreq
+                .OrderByDescending(kv => kv.Value)
+                .ThenBy(kv => kv.Key)
+                .Select(kv => kv.Key)
+                .Take(MAX_MAPPED)
+                .OrderBy(x => x)
+                .ToList();
+
+            ByteTrie trie2 = new ByteTrie();
+            foreach (var b in mappedBytes) trie2.Add(b);
+
+            // 9) Оцениваем размер после второго этапа сжатия
+            byte[] stage2Data;
+            using (var ms = new MemoryStream())
+            using (var bw = new BinaryWriter(ms, Encoding.Default, true))
+            {
+                trie2.SaveTreeUltraCompact(bw);
+                SaveBytesAsIndices(bw, shiftedBytes, mappedBytes);
+                bw.Flush();
+                stage2Data = ms.ToArray();
+            }
+
+            // 10) Сравниваем размеры и решаем, применять ли второй этап
+            bool useSecondStage = stage2Data.Length < matrixDataBytes.Length;
+
+            // Записываем флаг использования второго этапа
+            writer.Write((byte)(useSecondStage ? 1 : 0));
+
+            if (useSecondStage)
+            {
+                // Второй этап выгоден - используем его
+                writer.Write((byte)(byteDeltaPresent ? 1 : 0));
+                if (byteDeltaPresent) writer.Write(byteDelta);
+                writer.Write(stage2Data);
+            }
+            else
+            {
+                // Второй этап невыгоден - записываем исходные данные
+                writer.Write(matrixDataBytes);
+            }
         }
 
         public static int[,] LoadMatrix(BinaryReader reader)
         {
-            // Загружаем trie
-            ByteTrie loadedTrie = new ByteTrie();
-            loadedTrie.LoadTreeUltraCompact(reader);
+            // 1) Загрузим trie1
+            ByteTrie loadedTrie1 = new ByteTrie();
+            loadedTrie1.LoadTreeUltraCompact(reader);
+            List<int> loadedMappedKeys = loadedTrie1.GetAllNumbers().OrderBy(x => x).ToList();
 
-            // Восстанавливаем mappedKeys из trie (детерминированно — сортируем по значению)
-            List<int> loadedMappedKeys = loadedTrie.GetAllNumbers().OrderBy(x => x).ToList();
+            // 2) Прочитаем INT-DELTA флаг и значение
+            int intDelta = 0;
+            bool intDeltaPresent = false;
+            {
+                int flag = reader.ReadByte();
+                if (flag != 0)
+                {
+                    intDeltaPresent = true;
+                    intDelta = reader.ReadInt32();
+                }
+            }
 
-            // Загружаем матрицу как индексы, передавая known mapped keys
-            int[,] loadedMatrix = LoadMatrixFromIndices(reader, loadedMappedKeys);
+            // 3) Прочитаем флаг использования второго этапа
+            bool useSecondStage = (reader.ReadByte() != 0);
+
+            byte[] matrixDataBytes;
+
+            if (useSecondStage)
+            {
+                // 4) Второй этап использовался - читаем BYTE-DELTA
+                byte byteDelta = 0;
+                bool byteDeltaPresent = false;
+                {
+                    int flag = reader.ReadByte();
+                    if (flag != 0)
+                    {
+                        byteDeltaPresent = true;
+                        byteDelta = reader.ReadByte();
+                    }
+                }
+
+                // 5) Загрузим trie2
+                ByteTrie loadedTrie2 = new ByteTrie();
+                loadedTrie2.LoadTreeUltraCompact(reader);
+                List<int> loadedMappedBytes = loadedTrie2.GetAllNumbers().OrderBy(x => x).ToList();
+
+                // 6) Прочитаем и декодируем данные второго этапа
+                long left = reader.BaseStream.Length - reader.BaseStream.Position;
+                if (left <= 0)
+                    throw new EndOfStreamException("No bytes left when expected encoded matrix block.");
+
+                byte[] remaining = reader.ReadBytes((int)left);
+                using (var ms = new MemoryStream(remaining))
+                using (var br = new BinaryReader(ms, Encoding.Default, true))
+                {
+                    byte[] decodedShiftedBytes = LoadBytesFromIndices(br, loadedMappedBytes);
+
+                    // Применяем обратно byte-delta
+                    if (byteDeltaPresent)
+                    {
+                        matrixDataBytes = new byte[decodedShiftedBytes.Length];
+                        for (int i = 0; i < decodedShiftedBytes.Length; i++)
+                            matrixDataBytes[i] = (byte)(decodedShiftedBytes[i] + byteDelta);
+                    }
+                    else
+                    {
+                        matrixDataBytes = decodedShiftedBytes;
+                    }
+                }
+            }
+            else
+            {
+                // 7) Второй этап не использовался - читаем исходные данные
+                long left = reader.BaseStream.Length - reader.BaseStream.Position;
+                if (left < 0) left = 0;
+                matrixDataBytes = reader.ReadBytes((int)left);
+            }
+
+            // 8) Декодируем матрицу из данных
+            int[,] loadedMatrix;
+            using (var msDecoded = new MemoryStream(matrixDataBytes))
+            using (var brMatrix = new BinaryReader(msDecoded))
+            {
+                loadedMatrix = LoadMatrixFromIndices(brMatrix, loadedMappedKeys);
+            }
+
+            // 9) Применяем обратно int-delta
+            if (intDeltaPresent && intDelta != 0)
+            {
+                int rows = loadedMatrix.GetLength(0);
+                int cols = loadedMatrix.GetLength(1);
+                for (int i = 0; i < rows; i++)
+                    for (int j = 0; j < cols; j++)
+                        loadedMatrix[i, j] = loadedMatrix[i, j] + intDelta;
+            }
 
             return loadedMatrix;
         }
+
+
     }
 }
