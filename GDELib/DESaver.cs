@@ -42,7 +42,28 @@ namespace GDELib
                         writer.Write(Convert.ToUInt32(DE.YList.Count));
                         for (int i = 0; i < DE.YList.Count; i++)
                         {
-                            writer.Write(DE.YList[i].ya.ToString());
+                            switch (DE.YList[i].ya)
+                            {
+                                case Yacheyka.type.integer:
+                                    writer.Write("i");
+                                    break;
+                                case Yacheyka.type.doubl:
+                                    writer.Write("d");
+                                    break;
+                                case Yacheyka.type.str:
+                                    writer.Write("s");
+                                    break;
+                                case Yacheyka.type.booling:
+                                    writer.Write("b");
+                                    break;
+                                case Yacheyka.type.files:
+                                    writer.Write("f");
+                                    break;
+                                case Yacheyka.type.mas:
+                                    writer.Write("m");
+                                    break;
+                            }
+                            //writer.Write(DE.YList[i].ya.ToString());
                             if (DE.YList[i].ya == Yacheyka.type.integer)
                             {
                                 if (DE.YList[i].tip1 == "")
@@ -122,9 +143,30 @@ namespace GDELib
                     writer1.Write(Convert.ToUInt32(DE.YList.Count));//длина
                     for (int i = 0; i < DE.YList.Count; i++)
                     {
-                        writer1.Write(DE.YList[i].ya.ToString());//структура
+                        switch (DE.YList[i].ya)
+                        {
+                            case Yacheyka.type.integer:
+                                writer1.Write("i");
+                                break;
+                            case Yacheyka.type.doubl:
+                                writer1.Write("d");
+                                break;
+                            case Yacheyka.type.str:
+                                writer1.Write("s");
+                                break;
+                            case Yacheyka.type.booling:
+                                writer1.Write("b");
+                                break;
+                            case Yacheyka.type.files:
+                                writer1.Write("f");
+                                break;
+                            case Yacheyka.type.mas:
+                                writer1.Write("m");
+                                break;
+                        }
+                        //writer1.Write(DE.YList[i].ya.ToString());//структура
                     }
-                    writer1.Write("-/-/-/-/-/-");//граница
+                    writer1.Write("/");//граница
                     for (int i = 0; i < DE.YList.Count; i++)//данные
                     { 
                         if (DE.YList[i].ya == Yacheyka.type.integer)
@@ -233,27 +275,33 @@ namespace GDELib
                         for (int i = 0; i < all; i++)
                         {
                             string str = reader.ReadString();
-                            if (str == "integer")
+                            if (str == "integer" || str == "i")
                             {
                                 DE.CreateCell("int", reader1.ReadInt32().ToString());
                                 result[i] = DE.YList[i].tip1;
                             }
-                            if (str == "doubl")
+                            if (str == "doubl" || str == "d")
                             {
                                 DE.CreateCell("double", reader1.ReadDouble().ToString());
                                 result[i] = DE.YList[i].tip2;
                             }
-                            if (str == "str")
+                            if (str == "str" || str == "s")
                             {
                                 DE.CreateCell("string", reader1.ReadString().ToString());
                                 result[i] = DE.YList[i].tip3;
                             }
-                            if (str == "booling")
+                            if (str == "booling" || str == "b")
                             {
                                 DE.CreateCell("bool", reader1.ReadString().ToString());
                                 result[i] = DE.YList[i].tip4.ToString();
                             }
-                            if (str == "files")
+                            if (str == "mas" || str == "m")
+                            {
+                                int[,] masdata = DESM.ReadMatrix(reader1);
+                                DE.CreateCell(masdata);
+                                result[i] = $"matrix_{i}";
+                            }
+                            if (str == "files" || str == "f")
                             {
                                 int l = reader.ReadInt32();
                                 if (l != 0)
@@ -314,31 +362,37 @@ namespace GDELib
                     }
                     string razd = reader.ReadString();
                     result = new string[all];
-                    if (razd == "-/-/-/-/-/-")
+                    if (razd == "/")
                     {
                         for (int i = 0; i < types.Count; i++)
                         {
-                            if (types[i] == "integer")
+                            if (types[i] == "integer" || types[i] == "i")
                             {
                                 DE.CreateCell("int", reader.ReadInt32().ToString());
                                 result[i] = DE.YList[i].tip1;
                             }
-                            if (types[i] == "doubl")
+                            if (types[i] == "doubl" || types[i] == "d")
                             {
                                 DE.CreateCell("double", reader.ReadDouble().ToString());
                                 result[i] = DE.YList[i].tip2;
                             }
-                            if (types[i] == "str")
+                            if (types[i] == "str" || types[i] == "s")
                             {
                                 DE.CreateCell("string", reader.ReadString().ToString());
                                 result[i] = DE.YList[i].tip3;
                             }
-                            if (types[i] == "booling")
+                            if (types[i] == "booling" || types[i] == "b")
                             {
                                 DE.CreateCell("bool", reader.ReadString().ToString());
                                 result[i] = DE.YList[i].tip4.ToString();
                             }
-                            if (types[i] == "files")
+                            if (types[i] == "mas" || types[i] == "m")
+                            {
+                                int[,] masdata = DESM.ReadMatrix(reader);
+                                DE.CreateCell(masdata);
+                                result[i] = $"matrix_{i}";
+                            }
+                            if (types[i] == "files" || types[i] == "f")
                             {
                                 int l = reader.ReadInt32();
                                 if (l != 0)
@@ -359,6 +413,7 @@ namespace GDELib
                                     DE.CreateCell("file", "-");
                                 }
                             }
+                            
                         }
                     }
                 }
@@ -422,7 +477,7 @@ namespace GDELib
                         for (int i = 0; i < all; i++)
                         {
                             string str = reader.ReadString();
-                            if (str == "integer")
+                            if (str == "integer" || str == "i")
                             {
                                 DE.CreateCell("int", reader1.ReadInt32().ToString());
                                 if (i == NEl)
@@ -434,7 +489,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (str == "doubl")
+                            if (str == "doubl" || str == "d")
                             {
                                 DE.CreateCell("double", reader1.ReadDouble().ToString());
                                 if (i == NEl)
@@ -446,7 +501,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (str == "str")
+                            if (str == "str" || str == "s")
                             {
                                 DE.CreateCell("string", reader1.ReadString().ToString());
                                 if (i == NEl)
@@ -458,7 +513,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (str == "booling")
+                            if (str == "booling" || str == "b")
                             {
                                 DE.CreateCell("bool", reader1.ReadString().ToString());
                                 if (i == NEl)
@@ -470,7 +525,20 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (str == "files")
+                            if (str == "mas" || str == "m")
+                            {
+                                int[,] masdata = DESM.ReadMatrix(reader1);
+                                DE.CreateCell(masdata);
+                                if (i == NEl)
+                                {
+                                    result = $"matrix_{i}";
+                                    NEl++;
+                                    if (NEl == all)
+                                        NEl = 0;
+                                    return result;
+                                }
+                            }
+                            if (str == "files" || str == "f")
                             {
                                 int l = reader.ReadInt32();
                                 if (l != 0)
@@ -550,12 +618,12 @@ namespace GDELib
                         types.Add(str);
                     }
                     string razd = reader.ReadString();
-                    if (razd == "-/-/-/-/-/-")
+                    if (razd == "/")
                     {
                         for (int i = 0; i < types.Count; i++)
                         {
                             //string str = reader.ReadString();
-                            if (types[i] == "integer")
+                            if (types[i] == "integer" || types[i] == "i")
                             {
                                 DE.CreateCell("int", reader.ReadInt32().ToString());
                                 if (i == NEl)
@@ -567,7 +635,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (types[i] == "doubl")
+                            if (types[i] == "doubl" || types[i] == "d")
                             {
                                 DE.CreateCell("double", reader.ReadDouble().ToString());
                                 if (i == NEl)
@@ -579,7 +647,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (types[i] == "str")
+                            if (types[i] == "str" || types[i] == "s")
                             {
                                 DE.CreateCell("string", reader.ReadString().ToString());
                                 if (i == NEl)
@@ -591,7 +659,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (types[i] == "booling")
+                            if (types[i] == "booling" || types[i] == "b")
                             {
                                 DE.CreateCell("bool", reader.ReadString().ToString());
                                 if (i == NEl)
@@ -603,7 +671,7 @@ namespace GDELib
                                     return result;
                                 }
                             }
-                            if (types[i] == "files")
+                            if (types[i] == "files" || types[i] == "f")
                             {
                                 int l = reader.ReadInt32();
                                 if (l != 0)
@@ -639,7 +707,7 @@ namespace GDELib
                                     }
                                 }
                             }
-                            if (types[i] == "mas")
+                            if (types[i] == "mas" || types[i] == "m")
                             {
                                 int[,] masdata = DESM.ReadMatrix(reader);
                                 DE.CreateCell(masdata);

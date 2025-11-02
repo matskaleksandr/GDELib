@@ -48,7 +48,7 @@ namespace GDELib
                 }
             }
         }
-        
+        #region CreateCell     
         public void CreateCell(string types, dynamic data)
         {
             bool pr1 = false;
@@ -61,7 +61,7 @@ namespace GDELib
             }
             if(types == "double")
             {
-                k= Yacheyka.type.doubl;
+                k = Yacheyka.type.doubl;
                 pr1 = true;
             }
             if (types == "string")
@@ -82,10 +82,69 @@ namespace GDELib
             if (pr1)
             {
                 Yacheyka n = new Yacheyka(this, YList.Count, k, DATA);
-                YList.Add(n);
-                
+                YList.Add(n);                
             }
         }
+        //int
+        public void CreateCell(int data)
+        {
+            bool pr1 = true;
+            Yacheyka.type k = Yacheyka.type.integer;
+            string DATA = Convert.ToString(data);
+            if (pr1)
+            {
+                Yacheyka n = new Yacheyka(this, YList.Count, k, DATA);
+                YList.Add(n);
+            }
+        }
+        //double
+        public void CreateCell(double data)
+        {
+            bool pr1 = true;
+            Yacheyka.type k = Yacheyka.type.doubl;
+            string DATA = Convert.ToString(data);
+            if (pr1)
+            {
+                Yacheyka n = new Yacheyka(this, YList.Count, k, DATA);
+                YList.Add(n);
+            }
+        }
+        public void CreateCell(float data)
+        {
+            bool pr1 = true;
+            Yacheyka.type k = Yacheyka.type.doubl;
+            string DATA = Convert.ToString(data);
+            if (pr1)
+            {
+                Yacheyka n = new Yacheyka(this, YList.Count, k, DATA);
+                YList.Add(n);
+            }
+        }
+        //string
+        public void CreateCell(string data)
+        {
+            bool pr1 = true;
+            Yacheyka.type k = Yacheyka.type.str;
+            string DATA = data;
+            if (pr1)
+            {
+                Yacheyka n = new Yacheyka(this, YList.Count, k, DATA);
+                YList.Add(n);
+            }
+        }
+        //bool
+        public void CreateCell(bool data)
+        {
+            bool pr1 = true;
+            Yacheyka.type k = Yacheyka.type.booling;
+            string DATA = Convert.ToString(data);
+            if (pr1)
+            {
+                Yacheyka n = new Yacheyka(this, YList.Count, k, DATA);
+                YList.Add(n);
+            }
+        }
+        //matrix
         public void CreateCell(int[,] matrix)
         {
             bool pr1 = true;
@@ -96,6 +155,8 @@ namespace GDELib
                 YList.Add(n);
             }
         }
+        #endregion
+        ///////////////////////////////////////////////////////
         public int[,] MatrixData(string code)
         {
             string[] sp = code.Split('_');
