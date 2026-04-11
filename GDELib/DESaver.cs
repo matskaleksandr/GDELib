@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Runtime.Remoting.Messaging;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace GDELib
 {
@@ -35,11 +36,26 @@ namespace GDELib
             string folderPath = Path.Combine(pathcash,"cashfile\\"); //папка кэша?
             try
             {
-                using (BinaryWriter writer = new BinaryWriter(File.Open(Path.Combine(pathsave,Nfilestruct), FileMode.OpenOrCreate)))
+                using (BinaryWriter writer = new BinaryWriter(File.Open(Path.Combine(pathsave,Nfilestruct), FileMode.Create)))
                 {
-                    using (BinaryWriter writer1 = new BinaryWriter(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.OpenOrCreate)))
+                    using (BinaryWriter writer1 = new BinaryWriter(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Create)))
                     {
                         writer.Write(Convert.ToUInt32(DE.YList.Count));
+                        if(DE.password != "")
+                        {
+                            writer.Write("p");
+                            using (SHA256 sha = SHA256.Create())
+                            {
+                                byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                                byte[] hash = sha.ComputeHash(bytes);
+
+                                StringBuilder sb = new StringBuilder();
+                                foreach (byte b in hash)
+                                    sb.Append(b.ToString("x2"));
+
+                                writer1.Write(sb.ToString());
+                            }                            
+                        }
                         for (int i = 0; i < DE.YList.Count; i++)
                         {
                             switch (DE.YList[i].ya)
@@ -123,13 +139,17 @@ namespace GDELib
                                     writer.Write(0);
                                 }
                             }
+                            if (DE.YList[i].ya == Yacheyka.type.mas)
+                            {
+                                DESM.SaveMatrix(DE.YList[i].mas, writer1);
+                            }
                         }
                     }
                 }
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                Console.WriteLine(e);
             }
 
         }
@@ -138,9 +158,13 @@ namespace GDELib
             string folderPath = Path.Combine(pathcash, "cashfile\\"); //папка кэша?
             try
             {
-                using (BinaryWriter writer1 = new BinaryWriter(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.OpenOrCreate)))
+                using (BinaryWriter writer1 = new BinaryWriter(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Create)))
                 {
                     writer1.Write(Convert.ToUInt32(DE.YList.Count));//длина
+                    if (DE.password != "")
+                    {
+                        writer1.Write("p");
+                    }
                     for (int i = 0; i < DE.YList.Count; i++)
                     {
                         switch (DE.YList[i].ya)
@@ -168,7 +192,22 @@ namespace GDELib
                     }
                     writer1.Write("/");//граница
                     for (int i = 0; i < DE.YList.Count; i++)//данные
-                    { 
+                    {
+                        if (DE.password != "" && i == 0)
+                        {
+                            using (SHA256 sha = SHA256.Create())
+                            {
+                                byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                                byte[] hash = sha.ComputeHash(bytes);
+
+                                StringBuilder sb = new StringBuilder();
+                                foreach (byte b in hash)
+                                    sb.Append(b.ToString("x2"));
+
+                                writer1.Write(sb.ToString());
+                                //Console.WriteLine(sb.ToString());
+                            }
+                        }
                         if (DE.YList[i].ya == Yacheyka.type.integer)
                         {
                             if (DE.YList[i].tip1 == "")
@@ -243,7 +282,7 @@ namespace GDELib
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                Console.WriteLine(e);
             }
 
         }
@@ -269,12 +308,36 @@ namespace GDELib
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave, Nfilestruct), FileMode.Open)))
                 {
                     all = reader.ReadInt32();
+                    string pass = "";
                     result = new string[all];
+
                     using (BinaryReader reader1 = new BinaryReader(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Open)))
                     {
                         for (int i = 0; i < all; i++)
                         {
                             string str = reader.ReadString();
+                            if (str == "p")
+                            {
+                                pass = reader1.ReadString().ToString();
+                                using (SHA256 sha = SHA256.Create())
+                                {
+                                    byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                                    byte[] hash = sha.ComputeHash(bytes);
+
+                                    StringBuilder sb = new StringBuilder();
+                                    foreach (byte b in hash)
+                                        sb.Append(b.ToString("x2"));
+
+                                    if (pass != sb.ToString())
+                                    {
+                                        Console.WriteLine("[GDEError - 0001] Incorrect password");
+                                        //Console.WriteLine(pass);
+                                        //Console.WriteLine(sb.ToString());
+                                        return null;
+                                    }
+                                }
+                                i--;
+                            }
                             if (str == "integer" || str == "i")
                             {
                                 DE.CreateCell("int", reader1.ReadInt32().ToString());
@@ -355,15 +418,45 @@ namespace GDELib
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave,Nfiledata), FileMode.Open)))
                 {
                     all = reader.ReadInt32();
+                    string pass = "";
+                    bool fPass = false;
+
                     for (int i = 0; i < all; i++)
                     {
                         string str = reader.ReadString();
+                        if(str == "p")
+                        {
+                            fPass = true;
+                            i--;
+                            continue;
+                        }
                         types.Add(str);
                     }
                     string razd = reader.ReadString();
                     result = new string[all];
-                    if (razd == "/")
+                    if (razd == "/" || razd == "-/-/-/-/-/-")
                     {
+                        if (fPass)
+                        {
+                            pass = reader.ReadString().ToString();
+                            using (SHA256 sha = SHA256.Create())
+                            {
+                                byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                                byte[] hash = sha.ComputeHash(bytes);
+
+                                StringBuilder sb = new StringBuilder();
+                                foreach (byte b in hash)
+                                    sb.Append(b.ToString("x2"));
+
+                                if (pass != sb.ToString())
+                                {
+                                    Console.WriteLine("[GDEError - 0001] Incorrect password");
+                                    //Console.WriteLine(pass);
+                                    //Console.WriteLine(sb.ToString());
+                                    return null;
+                                }
+                            }
+                        }
                         for (int i = 0; i < types.Count; i++)
                         {
                             if (types[i] == "integer" || types[i] == "i")
@@ -420,7 +513,7 @@ namespace GDELib
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                Console.WriteLine(e);
             }
             return result;
         }
@@ -468,6 +561,7 @@ namespace GDELib
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave, Nfilestruct), FileMode.Open)))
                 {
                     all = reader.ReadInt32();
+                    string pass = "";
                     if (n != -1 && n <= all)
                     {
                         NEl = n;
@@ -477,6 +571,27 @@ namespace GDELib
                         for (int i = 0; i < all; i++)
                         {
                             string str = reader.ReadString();
+                            if (str == "p")
+                            {
+                                pass = reader1.ReadString().ToString();
+                                using (SHA256 sha = SHA256.Create())
+                                {
+                                    byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                                    byte[] hash = sha.ComputeHash(bytes);
+
+                                    StringBuilder sb = new StringBuilder();
+                                    foreach (byte b in hash)
+                                        sb.Append(b.ToString("x2"));
+
+                                    if (pass != sb.ToString())
+                                    {
+                                        Console.WriteLine("[GDEError - 0001] Incorrect password");
+                                        
+                                        return null;
+                                    }
+                                }
+                                i--;
+                            }
                             if (str == "integer" || str == "i")
                             {
                                 DE.CreateCell("int", reader1.ReadInt32().ToString());
@@ -608,6 +723,8 @@ namespace GDELib
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Open)))
                 {
                     all = reader.ReadInt32();
+                    string pass = "";
+                    bool fPass = false;
                     if (n != -1 && n <= all)
                     {
                         NEl = n;
@@ -615,11 +732,38 @@ namespace GDELib
                     for (int i = 0; i < all; i++)
                     {
                         string str = reader.ReadString();
+                        if (str == "p")
+                        {
+                            fPass = true;
+                            i--;
+                            continue;
+                        }
                         types.Add(str);
                     }
                     string razd = reader.ReadString();
-                    if (razd == "/")
+                    if (razd == "/" || razd == "-/-/-/-/-/-")
                     {
+                        if (fPass)
+                        {
+                            pass = reader.ReadString().ToString();
+                            using (SHA256 sha = SHA256.Create())
+                            {
+                                byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                                byte[] hash = sha.ComputeHash(bytes);
+
+                                StringBuilder sb = new StringBuilder();
+                                foreach (byte b in hash)
+                                    sb.Append(b.ToString("x2"));
+
+                                if (pass != sb.ToString())
+                                {
+                                    Console.WriteLine("[GDEError - 0001] Incorrect password");
+                                    //Console.WriteLine(pass);
+                                    //Console.WriteLine(sb.ToString());
+                                    return null;
+                                }
+                            }
+                        }
                         for (int i = 0; i < types.Count; i++)
                         {
                             //string str = reader.ReadString();

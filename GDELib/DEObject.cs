@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace GDELib
 {
@@ -17,6 +18,11 @@ namespace GDELib
         private string Ndata;
         private DESaver DS;
         private bool TOne;
+        internal string password = "";
+
+        public void Password(string passw) {
+            password = passw;
+        }
 
         public DEObject(string path_, bool _TOne = false, string _NameData = "data.sve", string _NameStruct = "struct.sve", string _pathcash = "pathcash")
         {
@@ -49,7 +55,7 @@ namespace GDELib
             }
         }
         #region CreateCell     
-        public void CreateCell(string types, dynamic data)
+        public void CreateCell(string types, object data)
         {
             bool pr1 = false;
             string DATA = Convert.ToString(data);
@@ -210,6 +216,10 @@ namespace GDELib
         public string NumberInfo()
         {
             return YList.Count.ToString();
+        }
+        public int NumberInfoInt()
+        {
+            return YList.Count;
         }
         public void Association(bool _TOne)
         {

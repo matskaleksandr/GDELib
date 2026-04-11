@@ -38,7 +38,6 @@ namespace GDELib
 
         public ByteTrieNode Root = new ByteTrieNode(0);
 
-        // Добавление произвольной последовательности байт (поддерживает произвольную длину)
         public void AddBytesDirect(byte[] bytes)
         {
             AddBytes(Root, bytes, 0);
@@ -72,16 +71,13 @@ namespace GDELib
             }
         }
 
-        // УЛЬТРА-КОМПАКТНАЯ сериализация - исключаем листовые узлы без детей
         public void SaveTreeUltraCompact(BinaryWriter writer)
         {
             SaveNodeUltraCompact(writer, Root);
         }
 
-        // Запись с bitmap флагами (каждому ребенку — 1 бит: 1 = есть поддерево, 0 = нет), с path-compression
         private void SaveNodeUltraCompact(BinaryWriter writer, ByteTrieNode node)
         {
-            // 1) Вычислим label: следуем по цепочке single-child узлов, пока возможно
             List<byte> label = new List<byte>();
             ByteTrieNode last = node;
             while (last.Children.Count == 1 && !last.IsLeaf)
@@ -92,7 +88,6 @@ namespace GDELib
             }
 
             bool hasChildren = last.Children.Count > 0;
-            // leaf относится к концу цепочки: если мы свернули цепочку, то конечный узел (last) может быть листом
             bool isLeaf = last.IsLeaf;
 
             int childCount = Math.Min(last.Children.Count, META_CHILDCOUNT_MASK); // 0..31
@@ -116,14 +111,12 @@ namespace GDELib
 
             if (hasChildren)
             {
-                // записываем значения всех детей конечного узла
                 var sortedChildren = last.Children.Values.OrderBy(c => c.Value).ToList();
                 for (int i = 0; i < childCount; i++)
                 {
                     writer.Write(sortedChildren[i].Value);
                 }
 
-                // bitmap: 1 если у child есть поддерево (т.е. child.Children.Count > 0)
                 int bits = childCount;
                 int bytesNeeded = (bits + 7) / 8;
                 byte[] bitmap = new byte[bytesNeeded];
@@ -142,7 +135,6 @@ namespace GDELib
 
                 writer.Write(bitmap);
 
-                // рекурсивно сохраняем поддеревья только для тех детей, где bitmap bit == 1
                 for (int i = 0; i < childCount; i++)
                 {
                     var child = sortedChildren[i];
@@ -162,7 +154,6 @@ namespace GDELib
             Root = LoadNodeUltraCompact(reader, true);
         }
 
-        // Чтение с учетом bitmap и path-compression
         private ByteTrieNode LoadNodeUltraCompact(BinaryReader reader, bool isRoot = false)
         {
             if (reader.BaseStream.Position >= reader.BaseStream.Length)
@@ -175,9 +166,7 @@ namespace GDELib
             int childCount = meta & META_CHILDCOUNT_MASK;
 
             ByteTrieNode startNode = isRoot ? Root : new ByteTrieNode();
-            // не присваиваем startNode.IsLeaf сейчас — сделаем это ниже, в зависимости от compressed
 
-            // Если есть label — читаем его и строим цепочку узлов
             ByteTrieNode last = startNode;
             if (compressed)
             {
@@ -189,16 +178,13 @@ namespace GDELib
                     last.Children[label[i]] = next;
                     last = next;
                 }
-                // флаг isLeaf относится к концу цепочки
                 last.IsLeaf = isLeaf;
             }
             else
             {
-                // нет label — флаг относится к startNode
                 startNode.IsLeaf = isLeaf;
             }
 
-            // Теперь last — конечный узел цепочки; у него могут быть дети
             if (hasChildren && childCount > 0)
             {
                 byte[] childValues = new byte[childCount];
@@ -211,7 +197,6 @@ namespace GDELib
                 if (bitmap.Length != bytesNeeded)
                     throw new EndOfStreamException("Unexpected end while reading bitmap.");
 
-                // Создаём детей и при необходимости рекурсивно загружаем их поддеревья
                 for (int i = 0; i < childCount; i++)
                 {
                     byte val = childValues[i];
@@ -345,13 +330,12 @@ namespace GDELib
     {
         public const int MAX_MAPPED = 14;
         public const int RESERVED_RAW_NIBBLE = 0xE;
+        private static readonly byte[] MATRIX_END_MARKER = new byte[] { 0xFF, 0x00, 0xFF };
 
-        // Helpers: ZigZag encode/decode to handle signed ints when trimming leading zeros
         private static uint ZigZagEncode(int v) => (uint)((v << 1) ^ (v >> 31));
         private static int ZigZagDecode(uint n) => (int)((n >> 1) ^ (-(int)(n & 1)));
 
-        // Encode a single int into a compact big-endian-with-length form:
-        // [len:1 byte][len bytes big-endian trimmed-leading-zeros (len>=1 && len<=4)]
+
         private static byte[] EncodeIntForTrie(int value, bool useZigZag)
         {
             uint u = useZigZag ? ZigZagEncode(value) : unchecked((uint)value);
@@ -366,7 +350,6 @@ namespace GDELib
             return outb;
         }
 
-        // Decode concatenated EncodeIntForTrie bytes -> list of ints
         private static List<int> DecodeTrieSequenceToInts(byte[] seqBytes, bool useZigZag)
         {
             var res = new List<int>();
@@ -394,8 +377,6 @@ namespace GDELib
             return res;
         }
 
-        // Build candidate sequences from matrix: horizontal sequences of neighboring cells up to maxCellsSeq.
-        // Returns top sequences (by simple score) as List<int[]>
         private static List<int[]> BuildTopSequencesFromMatrix(int[,] matrix, int maxCellsSeq = 4, int maxCandidates = MAX_MAPPED, bool useZigZag = true)
         {
             var freq = new Dictionary<string, int>();
@@ -428,7 +409,6 @@ namespace GDELib
                 }
             }
 
-            // score: prefer longer byte sequences that occur frequently
             var scored = freq.Select(kv => new
             {
                 Key = kv.Key,
@@ -451,7 +431,6 @@ namespace GDELib
             return result;
         }
 
-        // Build mapped sequences consisting of single top keys (old-style behavior but as sequences length=1)
         private static List<int[]> BuildSingleKeyMappedSeqs(int[,] matrix, int maxCandidates = MAX_MAPPED)
         {
             var freq = new Dictionary<int, int>();
@@ -478,14 +457,11 @@ namespace GDELib
             return res;
         }
 
-        // Save matrix indices using mapped sequences (mappedSeqs) and matching trie.
-        // This writes: rows(int32), cols(int32), then nibble-stream with either index or RAW markers.
         public static void SaveMatrixAsIndices_V2(BinaryWriter writer, int[,] matrix, List<int[]> mappedSeqs, ByteTrie trieForMatching, bool useZigZag = true)
         {
             if (mappedSeqs.Count > MAX_MAPPED)
                 throw new ArgumentException($"mappedSeqs.Count must be <= {MAX_MAPPED}");
 
-            // Build seqBytes for mappedSeqs
             var seqBytesList = new List<byte[]>();
             for (int i = 0; i < mappedSeqs.Count; i++)
             {
@@ -522,7 +498,6 @@ namespace GDELib
                 int c = 0;
                 while (c < cols)
                 {
-                    // try longest match in trie starting at (r,c)
                     ByteTrieNode node = trieForMatching.Root;
                     int scanC = c;
                     int lastMatchIndex = -1;
@@ -563,9 +538,7 @@ namespace GDELib
                     }
                     else
                     {
-                        // RAW for single cell (current c)
                         AppendNibble(RESERVED_RAW_NIBBLE);
-                        // little-endian raw bytes, minimal length
                         byte[] full = BitConverter.GetBytes(matrix[r, c]); // little-endian
                         int useBytes = 4;
                         while (useBytes > 1 && full[useBytes - 1] == 0) useBytes--;
@@ -584,7 +557,6 @@ namespace GDELib
             if (bitPos != 0) writer.Write((byte)currentByte);
         }
 
-        // Load matrix from indices when mappedSeqs (sequences) are used.
         public static int[,] LoadMatrixFromIndices_V2(BinaryReader reader, List<int[]> mappedSeqs)
         {
             if (mappedSeqs == null) throw new ArgumentNullException(nameof(mappedSeqs));
@@ -665,7 +637,6 @@ namespace GDELib
             return matrix;
         }
 
-        // Сериализация byte[] с картой до MAX_MAPPED наиболее частых байтов (аналог SaveMatrixAsIndices, но для байтов)
         public static void SaveBytesAsIndices(BinaryWriter writer, byte[] data, List<int> mappedBytes)
         {
             if (mappedBytes.Count > MAX_MAPPED)
@@ -923,64 +894,104 @@ namespace GDELib
         // --- Top-level SaveMatrix chooses between single-key variant and sequence variant ---
         public static void SaveMatrix(BinaryWriter writer, int[,] matrix)
         {
-            // 0 => single-key mappedSeqs (old-like)
-            // 1 => multi-cell sequence mappedSeqs (new)
             byte[] singleBlock = SerializeDynamicBlock(matrix, useSequences: false);
             byte[] seqBlock = SerializeDynamicBlock(matrix, useSequences: true);
 
             bool pickSeq = seqBlock.Length < singleBlock.Length;
-            if (pickSeq)
-            {
-                writer.Write((byte)1); // version flag: 1 = sequence variant
-                writer.Write(seqBlock);
-            }
-            else
-            {
-                writer.Write((byte)0); // version flag: 0 = single-key variant
-                writer.Write(singleBlock);
-            }
+
+            writer.Write((byte)(pickSeq ? 1 : 0));
+            writer.Write(pickSeq ? seqBlock : singleBlock);
+
+            
+            writer.Write((byte)0xFF);
+            writer.Write((byte)0x00);
+            writer.Write((byte)0xFF);
         }
 
-        // ----- LoadMatrix reads version flag first, then decodes the block (both variants use same block structure) -----
         public static int[,] LoadMatrix(BinaryReader reader)
         {
-            // Read version flag (0 = single-key variant, 1 = sequence variant)
             int versionFlag = reader.ReadByte();
             if (versionFlag != 0 && versionFlag != 1)
                 throw new InvalidDataException("Unknown matrix format version flag.");
 
-            // After this, the block format is the same: first mappedCount, then mappedSeqs table, then trie1, then int-delta, then stage2 decision/data
-            // So we can proceed exactly as before with dynamic loader
+            List<byte> blockBytes = new List<byte>();
 
-            // 1) Прочитаем таблицу mappedSeqs
-            int mappedCount = reader.ReadByte();
+            while (true)
+            {
+                if (reader.BaseStream.Position >= reader.BaseStream.Length)
+                    throw new EndOfStreamException("Matrix block not terminated.");
+
+                byte b = reader.ReadByte();
+
+                if (b == 0xFF)
+                {
+                    if (reader.BaseStream.Position < reader.BaseStream.Length)
+                    {
+                        byte b2 = reader.ReadByte();
+                        if (b2 == 0x00)
+                        {
+                            if (reader.BaseStream.Position < reader.BaseStream.Length)
+                            {
+                                byte b3 = reader.ReadByte();
+                                if (b3 == 0xFF)
+                                    break; // конец блока
+
+                                blockBytes.Add(0xFF);
+                                blockBytes.Add(0x00);
+                                blockBytes.Add(b3);
+                                continue;
+                            }
+
+                            blockBytes.Add(0xFF);
+                            blockBytes.Add(0x00);
+                            break;
+                        }
+                        else
+                        {
+                            blockBytes.Add(0xFF);
+                            blockBytes.Add(b2);
+                            continue;
+                        }
+                    }
+
+                    blockBytes.Add(0xFF);
+                    break;
+                }
+
+                blockBytes.Add(b);
+            }
+
+            MemoryStream ms = new MemoryStream(blockBytes.ToArray());
+            BinaryReader br = new BinaryReader(ms, Encoding.Default, true);
+
+            int mappedCount = br.ReadByte();
+
             var mappedSeqs = new List<int[]>();
             for (int i = 0; i < mappedCount; i++)
             {
-                int len = reader.ReadByte();
+                int len = br.ReadByte();
                 int[] seq = new int[len];
-                for (int j = 0; j < len; j++) seq[j] = reader.ReadInt32();
+                for (int j = 0; j < len; j++)
+                    seq[j] = br.ReadInt32();
+
                 mappedSeqs.Add(seq);
             }
 
-            // 2) Загрузим trie1 (структуру)
             ByteTrie loadedTrie1 = new ByteTrie();
-            loadedTrie1.LoadTreeUltraCompact(reader);
+            loadedTrie1.LoadTreeUltraCompact(br);
 
-            // 3) Прочитаем INT-DELTA флаг и значение
             int intDelta = 0;
             bool intDeltaPresent = false;
             {
-                int flag = reader.ReadByte();
+                int flag = br.ReadByte();
                 if (flag != 0)
                 {
                     intDeltaPresent = true;
-                    intDelta = reader.ReadInt32();
+                    intDelta = br.ReadInt32();
                 }
             }
 
-            // 4) Флаг использования второго этапа
-            bool useSecondStage = (reader.ReadByte() != 0);
+            bool useSecondStage = br.ReadByte() != 0;
 
             byte[] matrixDataBytes;
 
@@ -988,89 +999,70 @@ namespace GDELib
             {
                 byte byteDelta = 0;
                 bool byteDeltaPresent = false;
+
                 {
-                    int flag = reader.ReadByte();
+                    int flag = br.ReadByte();
                     if (flag != 0)
                     {
                         byteDeltaPresent = true;
-                        byteDelta = reader.ReadByte();
+                        byteDelta = br.ReadByte();
                     }
                 }
 
                 ByteTrie loadedTrie2 = new ByteTrie();
-                loadedTrie2.LoadTreeUltraCompact(reader);
-                // collect mapped bytes from trie2 (DFS)
+                loadedTrie2.LoadTreeUltraCompact(br);
+
                 List<int> loadedMappedBytes = new List<int>();
-                if (loadedTrie2 != null && loadedTrie2.Root != null)
+
+                var stack = new Stack<(ByteTrieNode node, List<byte> path)>();
+                stack.Push((loadedTrie2.Root, new List<byte>()));
+
+                while (stack.Count > 0)
                 {
-                    var stack = new Stack<(ByteTrieNode node, List<byte> path)>();
-                    stack.Push((loadedTrie2.Root, new List<byte>()));
-                    while (stack.Count > 0)
+                    var (node, path) = stack.Pop();
+
+                    if (node.IsLeaf && path.Count > 0)
+                        loadedMappedBytes.Add(path[0]);
+
+                    foreach (var child in node.Children.Values)
                     {
-                        var pair = stack.Pop();
-                        var node = pair.node;
-                        var path = pair.path;
-
-                        if (node.IsLeaf && path.Count > 0)
-                        {
-                            loadedMappedBytes.Add(path[0]);
-                        }
-
-                        foreach (var child in node.Children.Values)
-                        {
-                            var newPath = new List<byte>(path) { child.Value };
-                            stack.Push((child, newPath));
-                        }
+                        var newPath = new List<byte>(path) { child.Value };
+                        stack.Push((child, newPath));
                     }
-
-                    loadedMappedBytes = loadedMappedBytes.Distinct().OrderBy(x => x).ToList();
                 }
 
-                long left = reader.BaseStream.Length - reader.BaseStream.Position;
-                if (left <= 0)
-                    throw new EndOfStreamException("No bytes left when expected encoded matrix block.");
+                loadedMappedBytes = loadedMappedBytes.Distinct().OrderBy(x => x).ToList();
 
-                byte[] remaining = reader.ReadBytes((int)left);
-                using (var ms = new MemoryStream(remaining))
-                using (var br = new BinaryReader(ms, Encoding.Default, true))
+                byte[] decodedShiftedBytes = LoadBytesFromIndices(br, loadedMappedBytes);
+
+                matrixDataBytes = decodedShiftedBytes;
+
+                if (byteDeltaPresent)
                 {
-                    byte[] decodedShiftedBytes = LoadBytesFromIndices(br, loadedMappedBytes);
-
-                    if (byteDeltaPresent)
-                    {
-                        matrixDataBytes = new byte[decodedShiftedBytes.Length];
-                        for (int i = 0; i < decodedShiftedBytes.Length; i++)
-                            matrixDataBytes[i] = (byte)(decodedShiftedBytes[i] + byteDelta);
-                    }
-                    else
-                    {
-                        matrixDataBytes = decodedShiftedBytes;
-                    }
+                    for (int i = 0; i < matrixDataBytes.Length; i++)
+                        matrixDataBytes[i] += byteDelta;
                 }
             }
             else
             {
-                long left = reader.BaseStream.Length - reader.BaseStream.Position;
-                if (left < 0) left = 0;
-                matrixDataBytes = reader.ReadBytes((int)left);
+                matrixDataBytes = LoadBytesFromIndices(br, new List<int>());
             }
 
-            // 5) Декодируем матрицу из matrixDataBytes
             int[,] loadedMatrix;
-            using (var msDecoded = new MemoryStream(matrixDataBytes))
-            using (var brMatrix = new BinaryReader(msDecoded))
+            using (var ms2 = new MemoryStream(matrixDataBytes))
+            using (var br2 = new BinaryReader(ms2))
             {
-                loadedMatrix = LoadMatrixFromIndices_V2(brMatrix, mappedSeqs);
+                loadedMatrix = LoadMatrixFromIndices_V2(br2, mappedSeqs);
             }
 
-            // 6) Применяем обратно int-delta
-            if (intDeltaPresent && intDelta != 0)
+            if (intDeltaPresent)
             {
                 int rows = loadedMatrix.GetLength(0);
                 int cols = loadedMatrix.GetLength(1);
+
                 for (int i = 0; i < rows; i++)
                     for (int j = 0; j < cols; j++)
-                        loadedMatrix[i, j] = loadedMatrix[i, j] + intDelta;
+                        loadedMatrix[i, j] += intDelta;
             }
 
             return loadedMatrix;
