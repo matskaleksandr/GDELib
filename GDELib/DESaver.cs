@@ -13,7 +13,7 @@ namespace GDELib
     internal class DESaver
     {
         private int all = 0;
-        private int NEl = 0;
+        internal int NEl = 0;
         private string pathsave = "";
         private string pathcash = "";
         private string Nfilestruct = "";
@@ -21,6 +21,19 @@ namespace GDELib
         private DEObject DE;
         private DESMini DESM;
         private bool TOne;
+        private List<ListData> listData = new List<ListData>();
+
+        private struct ListData
+        {
+            public List<int> intlistS { get; }
+            public int pos { get; }
+
+            public ListData(List<int> x, int p)
+            {
+                intlistS = x;
+                pos = p;
+            }
+        }
         public DESaver(DEObject _DE, string _pathsave, string NFS, string NFD, bool _TOne, string _pathcash)
         {
             DE = _DE;
@@ -155,6 +168,39 @@ namespace GDELib
         }
         public void SaveOne()
         {
+            bool fList = false;
+            int mpos = 0;
+            List<int> intlist = new List<int>();
+            for (int i = 0; i < DE.YList.Count; i++)
+            {
+                if(DE.YList[i].ya == Yacheyka.type.integer)
+                {
+                    intlist.Add(Convert.ToInt32(DE.YList[i].tip1));
+                    fList = true;
+                    if(i ==  DE.YList.Count - 1)
+                    {
+                        if (intlist.Count >= 5)
+                        {
+                            ListData LD = new ListData(intlist, i - intlist.Count + 1);
+                            listData.Add(LD);
+                        }
+                    }
+                }
+                else
+                {
+                    if(fList == true)
+                    {
+                        if(intlist.Count >= 5)
+                        {
+                            ListData LD = new ListData(intlist, i - intlist.Count);
+                            listData.Add(LD);                            
+                        }                        
+                    }
+                    fList = false;
+                    intlist = new List<int>();
+                }
+            }
+            //Console.WriteLine(listData[1].intlistS.Count);
             string folderPath = Path.Combine(pathcash, "cashfile\\"); //папка кэша?
             try
             {
@@ -167,10 +213,26 @@ namespace GDELib
                     }
                     for (int i = 0; i < DE.YList.Count; i++)
                     {
+                        
                         switch (DE.YList[i].ya)
                         {
                             case Yacheyka.type.integer:
-                                writer1.Write("i");
+                                if(listData.Count != 0)
+                                {
+                                    if (listData[mpos].pos == i)
+                                    {
+                                        i += listData[mpos].intlistS.Count - 1;
+                                        //Console.WriteLine(listData[mpos].intlistS.Count);
+                                        writer1.Write("l");
+                                        writer1.Write((int)listData[mpos].intlistS.Count);
+                                        if (listData.Count - 1 > mpos)
+                                        {
+                                            mpos++;                                            
+                                        }
+                                        break;
+                                    }
+                                }
+                                writer1.Write("i");                             
                                 break;
                             case Yacheyka.type.doubl:
                                 writer1.Write("d");
@@ -191,6 +253,7 @@ namespace GDELib
                         //writer1.Write(DE.YList[i].ya.ToString());//структура
                     }
                     writer1.Write("/");//граница
+                    mpos = 0;
                     for (int i = 0; i < DE.YList.Count; i++)//данные
                     {
                         if (DE.password != "" && i == 0)
@@ -210,6 +273,27 @@ namespace GDELib
                         }
                         if (DE.YList[i].ya == Yacheyka.type.integer)
                         {
+                            if (listData.Count != 0)
+                            {
+                                if (listData[mpos].pos == i)
+                                {
+                                    i += listData[mpos].intlistS.Count - 1;
+
+                                    int[,] list = new int[listData[mpos].intlistS.Count,1];
+                                    for (int j = 0; j < listData[mpos].intlistS.Count; j++)
+                                    {
+                                        list[j, 0] = listData[mpos].intlistS[j];
+                                    }
+
+                                    DESM.SaveMatrix(list, writer1);
+
+                                    if (listData.Count - 1 > mpos)
+                                    {
+                                        mpos++;
+                                    }
+                                    continue;
+                                }
+                            }
                             if (DE.YList[i].tip1 == "")
                             {
                                 DE.YList[i].tip1 = "0";
@@ -424,15 +508,30 @@ namespace GDELib
                     for (int i = 0; i < all; i++)
                     {
                         string str = reader.ReadString();
-                        if(str == "p")
+                        //Console.WriteLine(str);
+                        if (str == "p")
                         {
                             fPass = true;
                             i--;
                             continue;
                         }
+                        if(str == "l")
+                        {
+                            //Console.WriteLine(all);
+                            int k = reader.ReadInt32();
+                            for (int j = 0; j < k - 1; j++)
+                            {
+                                types.Add(str);
+                            }
+                            //Console.WriteLine(k);
+                            i += k - 1;
+                            //Console.WriteLine(all);
+                        }                        
                         types.Add(str);
                     }
                     string razd = reader.ReadString();
+                    //all += all2;
+                    //Console.WriteLine(razd);
                     result = new string[all];
                     if (razd == "/" || razd == "-/-/-/-/-/-")
                     {
@@ -459,6 +558,17 @@ namespace GDELib
                         }
                         for (int i = 0; i < types.Count; i++)
                         {
+                            //Console.WriteLine(types[i]);
+                            if (types[i] == "l")
+                            {
+                                int[,] masdata = DESM.ReadMatrix(reader);
+                                for(int j = 0; j < masdata.GetLength(0); j++)
+                                {
+                                    DE.CreateCell(masdata[j,0]);
+                                    result[i] = DE.YList[i].tip1;
+                                    i++;
+                                }                                
+                            }
                             if (types[i] == "integer" || types[i] == "i")
                             {
                                 DE.CreateCell("int", reader.ReadInt32().ToString());
@@ -738,6 +848,15 @@ namespace GDELib
                             i--;
                             continue;
                         }
+                        if (str == "l")
+                        {
+                            int k = reader.ReadInt32();
+                            for (int j = 0; j < k - 1; j++)
+                            {
+                                types.Add(str);
+                            }
+                            i += k - 1;
+                        }
                         types.Add(str);
                     }
                     string razd = reader.ReadString();
@@ -767,6 +886,23 @@ namespace GDELib
                         for (int i = 0; i < types.Count; i++)
                         {
                             //string str = reader.ReadString();
+                            if (types[i] == "l")
+                            {
+                                int[,] masdata = DESM.ReadMatrix(reader);
+                                for (int j = 0; j < masdata.GetLength(0); j++)
+                                {
+                                    DE.CreateCell(masdata[j, 0]);                                    
+                                    if (i == NEl)
+                                    {
+                                        result = DE.YList[i].tip1;
+                                        NEl++;
+                                        if (NEl == all)
+                                            NEl = 0;
+                                        return result;
+                                    }
+                                    i++;
+                                }
+                            }
                             if (types[i] == "integer" || types[i] == "i")
                             {
                                 DE.CreateCell("int", reader.ReadInt32().ToString());

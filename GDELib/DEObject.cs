@@ -198,6 +198,51 @@ namespace GDELib
             else 
                 return DS.OpenNextOne(i);
         }
+
+        public string NextData(int i = -1)
+        {
+            string data = "";
+            if(i != -1)
+            {
+                DS.NEl = i;
+            }
+            if(DS.NEl >= YList.Count)
+            {
+                DS.NEl = YList.Count % DS.NEl;
+            }
+            if(YList.Count == 0)
+            {
+                return "[GDEError - 0002] No data available";
+            }
+            switch (YList[DS.NEl].ya)
+            {
+                case Yacheyka.type.integer:
+                    data = YList[DS.NEl].tip1;
+                    DS.NEl++;
+                    return data;
+                case Yacheyka.type.doubl:
+                    data = YList[DS.NEl].tip2;
+                    DS.NEl++;
+                    return data;
+                case Yacheyka.type.str:
+                    data = YList[DS.NEl].tip3;
+                    DS.NEl++;
+                    return data;
+                case Yacheyka.type.booling:
+                    data = YList[DS.NEl].tip4.ToString();
+                    DS.NEl++;
+                    return data;
+                case Yacheyka.type.files:
+                    data = YList[DS.NEl].tip5;
+                    DS.NEl++;
+                    return data;
+                case Yacheyka.type.mas:
+                    data = $"matrix_{DS.NEl}";
+                    DS.NEl++;
+                    return data;
+            }
+            return "[GDEError - 0002] No data available";
+        }
         public void ResetData(int i = -1)
         {
             if(i == -1)

@@ -1045,7 +1045,8 @@ namespace GDELib
             }
             else
             {
-                matrixDataBytes = LoadBytesFromIndices(br, new List<int>());
+                matrixDataBytes = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
+                //matrixDataBytes = LoadBytesFromIndices(br, new List<int>());
             }
 
             int[,] loadedMatrix;
