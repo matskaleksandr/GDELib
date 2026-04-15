@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Runtime.Remoting.Messaging;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -46,7 +47,7 @@ namespace GDELib
         }
         public void Save()
         {
-            string folderPath = Path.Combine(pathcash,"cashfile\\"); //папка кэша?
+            string folderPath = Path.Combine(pathcash,"cashfile"); //папка кэша?
             try
             {
                 using (BinaryWriter writer = new BinaryWriter(File.Open(Path.Combine(pathsave,Nfilestruct), FileMode.Create)))
@@ -125,22 +126,22 @@ namespace GDELib
                             {
                                 if (DE.YList[i].tip5 != "")
                                 {
-                                    if (!File.Exists(folderPath + Convert.ToString(i) + ".zip"))
+                                    if (!File.Exists(Path.Combine(folderPath, i + ".zip")))
                                     {
-                                        using (var archive = ZipFile.Open(folderPath + Convert.ToString(i) + ".zip", ZipArchiveMode.Create))
+                                        using (var archive = ZipFile.Open(Path.Combine(folderPath, i + ".zip"), ZipArchiveMode.Create))
                                         {
                                             archive.CreateEntryFromFile(DE.YList[i].tip5, Path.GetFileName(DE.YList[i].tip5));
                                         }
                                     }
                                     else
                                     {
-                                        File.Delete(folderPath + Convert.ToString(i) + ".zip");
-                                        using (var archive = ZipFile.Open(folderPath + Convert.ToString(i) + ".zip", ZipArchiveMode.Create))
+                                        File.Delete(Path.Combine(folderPath, i + ".zip"));
+                                        using (var archive = ZipFile.Open(Path.Combine(folderPath, i + ".zip"), ZipArchiveMode.Create))
                                         {
                                             archive.CreateEntryFromFile(DE.YList[i].tip5, Path.GetFileName(DE.YList[i].tip5));
                                         }
                                     }
-                                    byte[] zipBytes = File.ReadAllBytes(folderPath + Convert.ToString(i) + ".zip");
+                                    byte[] zipBytes = File.ReadAllBytes(Path.Combine(folderPath, i + ".zip"));
                                     writer.Write(zipBytes.Length);
                                     for (int j = 0; j < zipBytes.Length; j++)
                                     {
@@ -170,7 +171,10 @@ namespace GDELib
         {
             bool fList = false;
             int mpos = 0;
+            int controlStruct = 0;
             List<int> intlist = new List<int>();
+            listData.Clear();
+            listData = new List<ListData>();
             for (int i = 0; i < DE.YList.Count; i++)
             {
                 if(DE.YList[i].ya == Yacheyka.type.integer)
@@ -201,12 +205,16 @@ namespace GDELib
                 }
             }
             //Console.WriteLine(listData[1].intlistS.Count);
-            string folderPath = Path.Combine(pathcash, "cashfile\\"); //папка кэша?
+            string folderPath = Path.Combine(pathcash, "cashfile"); //папка кэша?
             try
             {
                 using (BinaryWriter writer1 = new BinaryWriter(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Create)))
-                {
+                {                    
                     writer1.Write(Convert.ToUInt32(DE.YList.Count));//длина
+                    writer1.Write("SVEO2");
+                    Random r = new Random();
+                    controlStruct = (int)r.Next() / 2;
+                    writer1.Write(controlStruct);
                     if (DE.password != "")
                     {
                         writer1.Write("p");
@@ -253,23 +261,38 @@ namespace GDELib
                         //writer1.Write(DE.YList[i].ya.ToString());//структура
                     }
                     writer1.Write("/");//граница
+
+                    string hashs = "";
+                    if (DE.password != "")
+                    {
+                        using (SHA256 sha = SHA256.Create())
+                        {
+                            byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
+                            byte[] hash = sha.ComputeHash(bytes);
+
+                            StringBuilder sb = new StringBuilder();
+                            foreach (byte b in hash)
+                                sb.Append(b.ToString("x2"));
+
+                            //Console.WriteLine(controlStruct);
+                            hashs = sb.ToString();
+                            int hashInt = BitConverter.ToInt32(hash, 0);
+                            controlStruct += hashInt;
+                            //Console.WriteLine(controlStruct);
+                        }
+                    }
+                    
+
                     mpos = 0;
                     for (int i = 0; i < DE.YList.Count; i++)//данные
-                    {
+                    {                        
                         if (DE.password != "" && i == 0)
                         {
-                            using (SHA256 sha = SHA256.Create())
-                            {
-                                byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
-                                byte[] hash = sha.ComputeHash(bytes);
-
-                                StringBuilder sb = new StringBuilder();
-                                foreach (byte b in hash)
-                                    sb.Append(b.ToString("x2"));
-
-                                writer1.Write(sb.ToString());
-                                //Console.WriteLine(sb.ToString());
-                            }
+                            writer1.Write(hashs);
+                        }
+                        if (i == 0)
+                        {
+                            writer1.Write(controlStruct);
                         }
                         if (DE.YList[i].ya == Yacheyka.type.integer)
                         {
@@ -324,22 +347,22 @@ namespace GDELib
                         {
                             if (DE.YList[i].tip5 != "")
                             {
-                                if (!File.Exists(folderPath + Convert.ToString(i) + ".zip"))
+                                if (!File.Exists(Path.Combine(folderPath, i + ".zip")))
                                 {
-                                    using (var archive = ZipFile.Open(folderPath + Convert.ToString(i) + ".zip", ZipArchiveMode.Create))
+                                    using (var archive = ZipFile.Open(Path.Combine(folderPath, i + ".zip"), ZipArchiveMode.Create))
                                     {
                                         archive.CreateEntryFromFile(DE.YList[i].tip5, Path.GetFileName(DE.YList[i].tip5));
                                     }
                                 }
                                 else
                                 {
-                                    File.Delete(folderPath + Convert.ToString(i) + ".zip");
-                                    using (var archive = ZipFile.Open(folderPath + Convert.ToString(i) + ".zip", ZipArchiveMode.Create))
+                                    File.Delete(Path.Combine(folderPath, i + ".zip"));
+                                    using (var archive = ZipFile.Open(Path.Combine(folderPath, i + ".zip"), ZipArchiveMode.Create))
                                     {
                                         archive.CreateEntryFromFile(DE.YList[i].tip5, Path.GetFileName(DE.YList[i].tip5));
                                     }
                                 }
-                                byte[] zipBytes = File.ReadAllBytes(folderPath + Convert.ToString(i) + ".zip");
+                                byte[] zipBytes = File.ReadAllBytes(Path.Combine(folderPath, i + ".zip"));
                                 writer1.Write(zipBytes.Length);//длина файла
                                 //writer1.Write("-/-");//граница на файл
                                 for (int j = 0; j < zipBytes.Length; j++)
@@ -373,7 +396,7 @@ namespace GDELib
         public string[] OpenAll()
         {
             string[] result = new string[0];
-            string folderPath = pathcash + "\\cashfile\\";
+            string folderPath = Path.Combine(pathcash, "cashfile");
             DirectoryInfo di = new DirectoryInfo(folderPath);
             foreach (FileInfo file in di.GetFiles())
             {
@@ -455,10 +478,10 @@ namespace GDELib
                                 {
                                     byte[] zipBytes = null;
                                     zipBytes = reader1.ReadBytes(l);
-                                    File.WriteAllBytes(folderPath + Convert.ToString(i) + ".zip", zipBytes);
+                                    File.WriteAllBytes(Path.Combine(folderPath, i + ".zip"), zipBytes);
                                     //ВЫНОСИТСЯ АРХИВ В ПАПКУ КЭША
                                     string name = null;
-                                    name = UnzipFile(folderPath + Convert.ToString(i) + ".zip", folderPath);
+                                    name = UnzipFile(Path.Combine(folderPath, i + ".zip"), folderPath);
                                     //РАСПАКОВКА АРХИВА
                                     string pathfile = Path.Combine(folderPath, name);
                                     DE.CreateCell("file", pathfile);
@@ -485,6 +508,7 @@ namespace GDELib
             List<string> types = new List<string>();
             string folderPath = Path.Combine(pathcash, "cashfile");
             DirectoryInfo di = new DirectoryInfo(folderPath);
+            bool SVEO2 = false;
             foreach (FileInfo file in di.GetFiles())
             {
                 file.Delete();
@@ -501,7 +525,34 @@ namespace GDELib
             {
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave,Nfiledata), FileMode.Open)))
                 {
+                    long pos = 0;
                     all = reader.ReadInt32();
+                    pos = reader.BaseStream.Position;
+                    int controlData = 0;
+                    int controlStruct = 0;
+                    int controlPassword = 0;
+
+                    try
+                    {
+                        string format = reader.ReadString();
+                        if (format == "SVEO2")
+                        {
+                            SVEO2 = true;
+                        }
+                    }
+                    catch {
+                        SVEO2 = false;                        
+                    }
+
+                    if (SVEO2)
+                    {
+                        controlStruct = reader.ReadInt32();
+                    }
+                    else
+                    {
+                        reader.BaseStream.Position = pos;
+                    }
+
                     string pass = "";
                     bool fPass = false;
 
@@ -538,6 +589,7 @@ namespace GDELib
                         if (fPass)
                         {
                             pass = reader.ReadString().ToString();
+                            
                             using (SHA256 sha = SHA256.Create())
                             {
                                 byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
@@ -547,13 +599,24 @@ namespace GDELib
                                 foreach (byte b in hash)
                                     sb.Append(b.ToString("x2"));
 
+                                controlPassword = BitConverter.ToInt32(hash, 0);
+
                                 if (pass != sb.ToString())
                                 {
                                     Console.WriteLine("[GDEError - 0001] Incorrect password");
-                                    //Console.WriteLine(pass);
-                                    //Console.WriteLine(sb.ToString());
                                     return null;
                                 }
+                            }
+
+                            
+                        }
+                        if (SVEO2)
+                        {
+                            controlData = reader.ReadInt32();
+                            if (controlData != controlStruct + controlPassword)
+                            {
+                                Console.WriteLine("[GDEError - 0003] Checksum violation");
+                                return null;
                             }
                         }
                         for (int i = 0; i < types.Count; i++)
@@ -602,10 +665,10 @@ namespace GDELib
                                 {
                                     byte[] zipBytes = null;
                                     zipBytes = reader.ReadBytes(l);
-                                    File.WriteAllBytes(folderPath + Convert.ToString(i) + ".zip", zipBytes);
+                                    File.WriteAllBytes(Path.Combine(folderPath, i + ".zip"), zipBytes);
                                     //ВЫНОСИТСЯ АРХИВ В ПАПКУ КЭША
                                     string name = null;
-                                    name = UnzipFile(folderPath + Convert.ToString(i) + ".zip", folderPath);
+                                    name = UnzipFile(Path.Combine(folderPath, i + ".zip"), folderPath);
                                     //РАСПАКОВКА АРХИВА
                                     string pathfile = Path.Combine(folderPath,name);
                                     DE.CreateCell("file", pathfile);
@@ -770,10 +833,10 @@ namespace GDELib
                                 {
                                     byte[] zipBytes = null;
                                     zipBytes = reader1.ReadBytes(l);
-                                    File.WriteAllBytes(Path.Combine(folderPath, Convert.ToString(i) + ".zip"), zipBytes);
+                                    File.WriteAllBytes(Path.Combine(folderPath, i + ".zip"), zipBytes);
                                     //ВЫНОСИТСЯ АРХИВ В ПАПКУ КЭША
                                     string name = null;
-                                    name = UnzipFile(Path.Combine(folderPath, Convert.ToString(i) + ".zip"), folderPath);
+                                    name = UnzipFile(Path.Combine(folderPath, i + ".zip"), folderPath);
                                     //РАСПАКОВКА АРХИВА
                                     string pathfile = Path.Combine(folderPath, name);
                                     DE.CreateCell("file", pathfile);
@@ -816,6 +879,7 @@ namespace GDELib
             List<string> types = new List<string>();
             string folderPath = Path.Combine(pathcash, "cashfile");
             DirectoryInfo di = new DirectoryInfo(folderPath);
+            bool SVEO2 = false;
             foreach (FileInfo file in di.GetFiles())
             {
                 file.Delete();
@@ -832,7 +896,35 @@ namespace GDELib
             {
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Open)))
                 {
+                    long pos = 0;
                     all = reader.ReadInt32();
+                    pos = reader.BaseStream.Position;
+                    int controlData = 0;
+                    int controlStruct = 0;
+                    int controlPassword = 0;
+
+                    try
+                    {
+                        string format = reader.ReadString();
+                        if (format == "SVEO2")
+                        {
+                            SVEO2 = true;
+                        }
+                    }
+                    catch
+                    {
+                        SVEO2 = false;
+                    }
+
+                    if (SVEO2)
+                    {
+                        controlStruct = reader.ReadInt32();
+                    }
+                    else
+                    {
+                        reader.BaseStream.Position = pos;
+                    }
+
                     string pass = "";
                     bool fPass = false;
                     if (n != -1 && n <= all)
@@ -865,6 +957,7 @@ namespace GDELib
                         if (fPass)
                         {
                             pass = reader.ReadString().ToString();
+
                             using (SHA256 sha = SHA256.Create())
                             {
                                 byte[] bytes = Encoding.UTF8.GetBytes(DE.password);
@@ -874,6 +967,8 @@ namespace GDELib
                                 foreach (byte b in hash)
                                     sb.Append(b.ToString("x2"));
 
+                                controlPassword = BitConverter.ToInt32(hash, 0);
+
                                 if (pass != sb.ToString())
                                 {
                                     Console.WriteLine("[GDEError - 0001] Incorrect password");
@@ -881,6 +976,15 @@ namespace GDELib
                                     //Console.WriteLine(sb.ToString());
                                     return null;
                                 }
+                            }
+                        }
+                        if (SVEO2)
+                        {
+                            controlData = reader.ReadInt32();
+                            if (controlData != controlStruct + controlPassword)
+                            {
+                                Console.WriteLine("[GDEError - 0003] Checksum violation");
+                                return null;
                             }
                         }
                         for (int i = 0; i < types.Count; i++)
@@ -958,10 +1062,10 @@ namespace GDELib
                                 {
                                     byte[] zipBytes = null;
                                     zipBytes = reader.ReadBytes(l);
-                                    File.WriteAllBytes(Path.Combine(folderPath, Convert.ToString(i) + ".zip"), zipBytes);
+                                    File.WriteAllBytes(Path.Combine(folderPath, i + ".zip"), zipBytes);
                                     //ВЫНОСИТСЯ АРХИВ В ПАПКУ КЭША
                                     string name = null;
-                                    name = UnzipFile(Path.Combine(folderPath, Convert.ToString(i) + ".zip"), folderPath);
+                                    name = UnzipFile(Path.Combine(folderPath, i + ".zip"), folderPath);
                                     //РАСПАКОВКА АРХИВА
                                     string pathfile = Path.Combine(folderPath, name);
                                     DE.CreateCell("file", pathfile);

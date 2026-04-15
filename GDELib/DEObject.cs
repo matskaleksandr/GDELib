@@ -174,7 +174,7 @@ namespace GDELib
             YList.RemoveAt(i);
             for(int j = 0; j < YList.Count; j++)
             {
-                YList[j].Upd(i);
+                YList[j].Upd(j);
             }
         }
         public void Save()
@@ -206,14 +206,14 @@ namespace GDELib
             {
                 DS.NEl = i;
             }
-            if(DS.NEl >= YList.Count)
-            {
-                DS.NEl = YList.Count % DS.NEl;
-            }
-            if(YList.Count == 0)
+            if (YList.Count == 0)
             {
                 return "[GDEError - 0002] No data available";
             }
+            if (DS.NEl >= YList.Count)
+            {
+                DS.NEl = DS.NEl % YList.Count;
+            }            
             switch (YList[DS.NEl].ya)
             {
                 case Yacheyka.type.integer:
@@ -273,7 +273,7 @@ namespace GDELib
         public void CloneDataDE(DEObject DE)
         {
             DE.OpenAll();
-            this.YList = DE.YList;
+            this.YList = new List<Yacheyka>(DE.YList);
         }
         public void RecreateCell(int i ,string types, dynamic data)
         {
