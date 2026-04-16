@@ -1,6 +1,6 @@
 # Примеры использования
 
-Этот документ собран как набор коротких сценариев, которые можно брать за основу при интеграции GDELib в приложение.
+Ниже собраны практические примеры для `GDELib 1.4.0`. Все они опираются на реальный публичный API библиотеки и подходят как отправная точка для собственного проекта.
 
 ## Минимальный пример
 
@@ -12,24 +12,16 @@ using GDELib;
 string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Minimal");
 Directory.CreateDirectory(storeDir);
 
-var writer = new DEObject(storeDir);
-writer.CreateCell(42);
-writer.CreateCell("hello");
-writer.Save();
+var de = new DEObject(storeDir);
+de.CreateCell("int", 42);
+de.CreateCell("string", "hello");
+de.Save();
 
-var reader = new DEObject(storeDir);
-string[] values = reader.OpenAll();
-
+string[] values = de.OpenAll();
 Console.WriteLine(string.Join(", ", values));
 ```
 
-Когда использовать:
-
-- для smoke-test после подключения пакета;
-- для проверки путей и прав доступа;
-- для первого знакомства с `DEObject`.
-
-## Пример записи разных типов
+## Пример записи разных типов данных
 
 ```csharp
 using System;
@@ -40,23 +32,12 @@ string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Write");
 Directory.CreateDirectory(storeDir);
 
 var de = new DEObject(storeDir);
-
-// Базовые типы
-de.CreateCell(100);
-de.CreateCell(15.75);
-de.CreateCell("Документ");
-de.CreateCell(true);
-
-// Универсальная строковая перегрузка удобна, когда тип приходит извне
-de.CreateCell("file", @"C:\Temp\report.txt");
-
+de.CreateCell("int", 100);
+de.CreateCell("double", 15.75);
+de.CreateCell("string", "Документ");
+de.CreateCell("bool", true);
 de.Save();
 ```
-
-Что важно:
-
-- порядок `CreateCell(...)` определяет порядок последующего чтения;
-- файл добавляется не как текст, а как путь к файлу, который библиотека затем упакует в zip. `[confirmed by code]`
 
 ## Пример чтения всего набора
 
@@ -70,25 +51,13 @@ string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-ReadAll");
 var de = new DEObject(storeDir);
 string[] values = de.OpenAll();
 
-if (values == null)
+foreach (string value in values)
 {
-    Console.WriteLine("Чтение не удалось.");
-    return;
-}
-
-for (int i = 0; i < values.Length; i++)
-{
-    Console.WriteLine($"[{i}] = {values[i]}");
+    Console.WriteLine(value);
 }
 ```
 
-Когда использовать:
-
-- если нужен весь набор сразу;
-- если дальше планируется `NextData()`;
-- если нужно быстро проверить round-trip после `Save()`.
-
-## Пример пошагового чтения с диска
+## Пример пошагового чтения
 
 ```csharp
 using System;
@@ -98,181 +67,160 @@ using GDELib;
 string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-OpenNext");
 
 var de = new DEObject(storeDir);
-
-string first = de.OpenNext();
-string second = de.OpenNext();
-string fourth = de.OpenNext(3);
-
-Console.WriteLine(first);
-Console.WriteLine(second);
-Console.WriteLine(fourth);
+Console.WriteLine(de.OpenNext(0));
+Console.WriteLine(de.OpenNext(1));
 ```
 
-Что нужно помнить:
+Такой вариант удобен, если нужно получить конкретные позиции без полного перебора всего массива.
 
-- `OpenNext()` читает из файла;
-- повторные вызовы не являются дешёвой потоковой итерацией, потому что библиотека каждый раз заново разбирает файл. `[confirmed by code]`
-
-## Пример последовательного чтения из памяти
-
-Сценарий полезен, когда вы один раз открыли весь набор и хотите обойти его без новых обращений к диску.
+## Пример повторного чтения тем же объектом
 
 ```csharp
 using System;
 using System.IO;
 using GDELib;
 
-string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-NextData");
+string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Reuse");
+Directory.CreateDirectory(storeDir);
 
 var de = new DEObject(storeDir);
-de.OpenAll();
+de.CreateCell("int", 7);
+de.CreateCell("string", "reuse");
+de.Save();
 
-for (int i = 0; i < de.NumberInfoInt(); i++)
-{
-    string value = de.NextData();
-    Console.WriteLine(value);
-}
+string[] values = de.OpenAll();
+Console.WriteLine(values[0]);
+Console.WriteLine(values[1]);
 ```
 
-Практический смысл:
+Этот сценарий подходит, если запись и проверка результата выполняются в одном и том же участке кода.
 
-- `OpenAll()` загружает набор в память;
-- `NextData()` просто двигает внутренний индекс.
-
-## Пример повторного открытия данных новым объектом
+## Пример чтения новым объектом
 
 ```csharp
 using System;
 using System.IO;
 using GDELib;
 
-string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Reopen");
+string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-NewObject");
 Directory.CreateDirectory(storeDir);
 
 var writer = new DEObject(storeDir);
-writer.CreateCell("persisted");
+writer.CreateCell("string", "persisted");
 writer.Save();
 
-// Новый экземпляр имитирует новый запуск приложения
 var reader = new DEObject(storeDir);
 string[] values = reader.OpenAll();
-
 Console.WriteLine(values[0]);
 ```
 
-Это лучший шаблон для прикладной проверки, что сохранение реально прошло успешно.
+Такой подход часто удобен, если чтение отделено от записи логикой приложения.
 
-## Пример работы с матрицами
-
-Матрицы подтверждены в текущем коде репозитория, но не относятся к минимальному опубликованному набору `1.4.0`. `[confirmed by git history]`
+## Пример работы с файлом
 
 ```csharp
 using System;
 using System.IO;
 using GDELib;
 
-string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Matrix");
+string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-File");
 Directory.CreateDirectory(storeDir);
 
-int[,] matrix =
-{
-    { 1, 2, 3 },
-    { 5, 8, 13 }
-};
+string sourceFile = Path.Combine(storeDir, "note.txt");
+File.WriteAllText(sourceFile, "Пример файла");
 
-var writer = new DEObject(storeDir);
-writer.CreateCell(matrix);
-writer.Save();
+var de = new DEObject(storeDir);
+de.CreateCell("file", sourceFile);
+de.Save();
 
-var reader = new DEObject(storeDir);
-string[] values = reader.OpenAll();
-
-// values[0] будет строкой вида "matrix_0"
-int[,] restored = reader.MatrixData(values[0]);
-Console.WriteLine(restored[1, 2]);
+string restoredFilePath = de.OpenAll()[0];
+Console.WriteLine(restoredFilePath);
 ```
 
-## Пример с паролем
+В этом примере:
+
+- в `CreateCell("file", ...)` передаётся путь к исходному файлу;
+- библиотека сохраняет файл внутри контейнера;
+- после чтения возвращается путь к его восстановленной копии.
+
+## Пример однофайлового режима
 
 ```csharp
 using System;
 using System.IO;
 using GDELib;
 
-string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Password");
+string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-OneFile");
 Directory.CreateDirectory(storeDir);
 
-var writer = new DEObject(storeDir);
-writer.Password("secret");
-writer.CreateCell("protected");
-writer.Save();
+var de = new DEObject(storeDir, true, "bundle.sve", "struct.sve", storeDir);
+de.CreateCell("int", 1);
+de.CreateCell("string", "one-file");
+de.Save();
 
-var reader = new DEObject(storeDir);
-reader.Password("secret");
-
-string[] values = reader.OpenAll();
-Console.WriteLine(values?[0] ?? "Не удалось прочитать данные");
+string[] values = de.OpenAll();
+Console.WriteLine(string.Join(", ", values));
 ```
 
-Ограничение:
+## Пример изменения данных
 
-- пароль проверяет право чтения, но не шифрует содержимое файла. `[confirmed by code]`
+```csharp
+using System;
+using System.IO;
+using GDELib;
+
+string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Update");
+Directory.CreateDirectory(storeDir);
+
+var de = new DEObject(storeDir);
+de.CreateCell("string", "Старое значение");
+de.RecreateCell(0, "string", "Новое значение");
+de.Save();
+
+Console.WriteLine(de.OpenAll()[0]);
+```
+
+## Пример удаления элемента
+
+```csharp
+using System;
+using System.IO;
+using GDELib;
+
+string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Delete");
+Directory.CreateDirectory(storeDir);
+
+var de = new DEObject(storeDir);
+de.CreateCell("int", 1);
+de.CreateCell("int", 2);
+de.CreateCell("int", 3);
+
+de.Dell(1);
+de.Save();
+
+Console.WriteLine(string.Join(", ", de.OpenAll()));
+```
 
 ## Пример типичной ошибки и исправления
 
-### Ошибка: забыли установить пароль перед чтением
+### Ошибка: каталог ещё не создан
 
 ```csharp
-using System.IO;
-using GDELib;
-
-string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Password-Fail");
-
-var writer = new DEObject(storeDir);
-writer.Password("secret");
-writer.CreateCell("data");
-writer.Save();
-
-var brokenReader = new DEObject(storeDir);
-string[] brokenValues = brokenReader.OpenAll(); // Вернётся null
+string storeDir = Path.Combine(Environment.CurrentDirectory, "MissingFolder");
+var de = new DEObject(storeDir);
 ```
 
-Исправление:
+Лучше так:
 
 ```csharp
-using System.IO;
-using GDELib;
-
-string storeDir = Path.Combine(Environment.CurrentDirectory, "Example-Password-Fail");
-
-var reader = new DEObject(storeDir);
-reader.Password("secret");
-
-string[] values = reader.OpenAll();
-```
-
-### Ошибка: попытка трактовать матрицу как обычную строку
-
-Неправильно:
-
-```csharp
-string[] values = de.OpenAll();
-Console.WriteLine(values[0]); // Вы увидите только "matrix_0"
-```
-
-Правильно:
-
-```csharp
-string[] values = de.OpenAll();
-int[,] matrix = de.MatrixData(values[0]);
-Console.WriteLine(matrix[0, 0]);
+string storeDir = Path.Combine(Environment.CurrentDirectory, "MissingFolder");
+Directory.CreateDirectory(storeDir);
+var de = new DEObject(storeDir);
 ```
 
 ## Best practices
 
-- Используйте типизированные перегрузки `CreateCell(...)`, а не строковую, если тип известен на этапе компиляции.
-- После `Save()` открывайте данные новым экземпляром `DEObject` и сравнивайте результат.
-- Для массового чтения делайте `OpenAll()` один раз, а потом итерируйтесь через `NextData()`.
-- Задавайте явные каталоги для хранения и кэша.
-- Не используйте `Password(...)` как замену шифрованию.
-- Для удаления одного элемента предпочитайте `ResetData(i)`, а не `Dell(i)`, пока дефект пересчёта индексов не исправлен. `[confirmed by code]`
+- Начинайте с двухфайлового режима, если хотите проще видеть структуру сохранения.
+- Используйте однофайловый режим, если приложению нужен один основной контейнер.
+- После чтения файловых ячеек используйте путь, который вернула библиотека.
+- Если нужно быстро проверить запись, можно прочитать данные тем же объектом через `OpenAll()`.
