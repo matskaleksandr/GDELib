@@ -911,6 +911,7 @@ namespace GDELib
         public static int[,] LoadMatrix(BinaryReader reader)
         {
             int versionFlag = reader.ReadByte();
+            //Console.WriteLine(versionFlag);
             if (versionFlag != 0 && versionFlag != 1)
                 throw new InvalidDataException("Unknown matrix format version flag.");
 

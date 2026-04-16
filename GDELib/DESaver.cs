@@ -47,7 +47,45 @@ namespace GDELib
         }
         public void Save()
         {
-            string folderPath = Path.Combine(pathcash,"cashfile"); //папка кэша?
+            int mpos = 0;
+            List<int> intlist = new List<int>();
+            bool fList = false;
+            int controlStruct = 0;
+            listData.Clear();
+            listData = new List<ListData>();
+
+            for (int i = 0; i < DE.YList.Count; i++)
+            {
+                if (DE.YList[i].ya == Yacheyka.type.integer)
+                {
+                    intlist.Add(Convert.ToInt32(DE.YList[i].tip1));
+                    fList = true;
+                    if (i == DE.YList.Count - 1)
+                    {
+                        if (intlist.Count >= 5)
+                        {
+                            ListData LD = new ListData(intlist, i - intlist.Count + 1);
+                            listData.Add(LD);
+                        }
+                    }
+                }
+                else
+                {
+                    if (fList == true)
+                    {
+                        if (intlist.Count >= 5)
+                        {
+                            ListData LD = new ListData(intlist, i - intlist.Count);
+                            listData.Add(LD);
+                        }
+                    }
+                    fList = false;
+                    intlist = new List<int>();
+                }
+            }
+
+            string folderPath = Path.Combine(pathcash, "cashfile"); //папка кэша?
+
             try
             {
                 using (BinaryWriter writer = new BinaryWriter(File.Open(Path.Combine(pathsave,Nfilestruct), FileMode.Create)))
@@ -55,7 +93,11 @@ namespace GDELib
                     using (BinaryWriter writer1 = new BinaryWriter(File.Open(Path.Combine(pathsave, Nfiledata), FileMode.Create)))
                     {
                         writer.Write(Convert.ToUInt32(DE.YList.Count));
-                        if(DE.password != "")
+                        writer.Write("SVE3");
+                        Random r = new Random();
+                        controlStruct = (int)r.Next() / 2;
+                        writer.Write(controlStruct);
+                        if (DE.password != "")
                         {
                             writer.Write("p");
                             using (SHA256 sha = SHA256.Create())
@@ -67,14 +109,33 @@ namespace GDELib
                                 foreach (byte b in hash)
                                     sb.Append(b.ToString("x2"));
 
-                                writer1.Write(sb.ToString());
+                                int hashInt = BitConverter.ToInt32(hash, 0);
+                                controlStruct += hashInt;
+
+                                writer1.Write(sb.ToString());                                
                             }                            
                         }
+                        writer1.Write(controlStruct);
                         for (int i = 0; i < DE.YList.Count; i++)
                         {
                             switch (DE.YList[i].ya)
                             {
                                 case Yacheyka.type.integer:
+                                    if (listData.Count != 0)
+                                    {
+                                        if (listData[mpos].pos == i)
+                                        {
+                                            //i += listData[mpos].intlistS.Count - 1;
+                                            //Console.WriteLine(listData[mpos].intlistS.Count);
+                                            writer.Write("l");
+                                            writer.Write((int)listData[mpos].intlistS.Count);
+                                            if (listData.Count - 1 > mpos)
+                                            {
+                                                mpos++;
+                                            }
+                                            break;
+                                        }
+                                    }
                                     writer.Write("i");
                                     break;
                                 case Yacheyka.type.doubl:
@@ -94,8 +155,31 @@ namespace GDELib
                                     break;
                             }
                             //writer.Write(DE.YList[i].ya.ToString());
+                            mpos = 0;
                             if (DE.YList[i].ya == Yacheyka.type.integer)
                             {
+                                if (listData.Count != 0)
+                                {
+                                    if (listData[mpos].pos == i)
+                                    {
+                                        i += listData[mpos].intlistS.Count - 1;
+
+                                        int[,] list = new int[listData[mpos].intlistS.Count, 1];
+                                        for (int j = 0; j < listData[mpos].intlistS.Count; j++)
+                                        {
+                                            list[j, 0] = listData[mpos].intlistS[j];
+                                        }
+                                        //Console.WriteLine(listData[mpos].intlistS.Count);
+
+                                        DESM.SaveMatrix(list, writer1);
+
+                                        if (listData.Count - 1 > mpos)
+                                        {
+                                            mpos++;
+                                        }
+                                        continue;
+                                    }
+                                }
                                 if (DE.YList[i].tip1 == "")
                                 {
                                     DE.YList[i].tip1 = "0";
@@ -398,6 +482,8 @@ namespace GDELib
             string[] result = new string[0];
             string folderPath = Path.Combine(pathcash, "cashfile");
             DirectoryInfo di = new DirectoryInfo(folderPath);
+            bool SVE3 = false;
+            bool fRe = false;
             foreach (FileInfo file in di.GetFiles())
             {
                 file.Delete();
@@ -414,7 +500,36 @@ namespace GDELib
             {
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave, Nfilestruct), FileMode.Open)))
                 {
+                    long pos = 0;
                     all = reader.ReadInt32();
+                    pos = reader.BaseStream.Position;
+                    int controlData = 0;
+                    int controlStruct = 0;
+                    int controlPassword = 0;
+
+                    try
+                    {
+                        string format = reader.ReadString();
+                        //Console.WriteLine(format);
+                        if (format == "SVE3")
+                        {
+                            SVE3 = true;
+                        }
+                    }
+                    catch
+                    {
+                        SVE3 = false;
+                    }
+
+                    if (SVE3)
+                    {
+                        controlStruct = reader.ReadInt32();
+                    }
+                    else
+                    {
+                        reader.BaseStream.Position = pos;
+                    }
+
                     string pass = "";
                     result = new string[all];
 
@@ -423,6 +538,7 @@ namespace GDELib
                         for (int i = 0; i < all; i++)
                         {
                             string str = reader.ReadString();
+                            //Console.WriteLine(str + " - " + i);
                             if (str == "p")
                             {
                                 pass = reader1.ReadString().ToString();
@@ -435,15 +551,45 @@ namespace GDELib
                                     foreach (byte b in hash)
                                         sb.Append(b.ToString("x2"));
 
+                                    controlPassword = BitConverter.ToInt32(hash, 0);
+
                                     if (pass != sb.ToString())
                                     {
-                                        Console.WriteLine("[GDEError - 0001] Incorrect password");
                                         //Console.WriteLine(pass);
+                                        //Console.WriteLine("------");
                                         //Console.WriteLine(sb.ToString());
+                                        Console.WriteLine("[GDEError - 0001] Incorrect password");
                                         return null;
                                     }
                                 }
                                 i--;
+                            }
+                            if (SVE3 == true && fRe == false)
+                            {
+                                //Console.WriteLine("-");
+                                controlData = reader1.ReadInt32();
+                                if (controlData != controlStruct + controlPassword)
+                                {
+                                    Console.WriteLine("[GDEError - 0003] Checksum violation");
+                                    return null;
+                                }
+                                fRe = true;
+                            }
+                            if (str == "l")
+                            {
+                                //Console.WriteLine("-");
+                                int k = reader.ReadInt32();
+                                //Console.WriteLine(k);
+                                int[,] masdata = DESM.ReadMatrix(reader1);
+                                
+                                for (int j = 0; j < masdata.GetLength(0); j++)
+                                {
+                                    DE.CreateCell(masdata[j, 0]);
+                                    result[i] = DE.YList[i].tip1;
+                                    i++;
+                                }
+                                i--;
+                                //i += k - 1;
                             }
                             if (str == "integer" || str == "i")
                             {
@@ -630,7 +776,8 @@ namespace GDELib
                                     DE.CreateCell(masdata[j,0]);
                                     result[i] = DE.YList[i].tip1;
                                     i++;
-                                }                                
+                                }
+                                i--;
                             }
                             if (types[i] == "integer" || types[i] == "i")
                             {
@@ -717,6 +864,8 @@ namespace GDELib
             string result = "--";
             string folderPath = Path.Combine(pathcash, "cashfile");
             DirectoryInfo di = new DirectoryInfo(folderPath);
+            bool SVE3 = false;
+            bool fRe = false;
             foreach (FileInfo file in di.GetFiles())
             {
                 file.Delete();
@@ -733,7 +882,36 @@ namespace GDELib
             {
                 using (BinaryReader reader = new BinaryReader(File.Open(Path.Combine(pathsave, Nfilestruct), FileMode.Open)))
                 {
+                    long pos = 0;
                     all = reader.ReadInt32();
+                    pos = reader.BaseStream.Position;
+                    int controlData = 0;
+                    int controlStruct = 0;
+                    int controlPassword = 0;
+
+                    try
+                    {
+                        string format = reader.ReadString();
+                        //Console.WriteLine(format);
+                        if (format == "SVE3")
+                        {
+                            SVE3 = true;
+                        }
+                    }
+                    catch
+                    {
+                        SVE3 = false;
+                    }
+
+                    if (SVE3)
+                    {
+                        controlStruct = reader.ReadInt32();
+                    }
+                    else
+                    {
+                        reader.BaseStream.Position = pos;
+                    }
+
                     string pass = "";
                     if (n != -1 && n <= all)
                     {
@@ -756,6 +934,8 @@ namespace GDELib
                                     foreach (byte b in hash)
                                         sb.Append(b.ToString("x2"));
 
+                                    controlPassword = BitConverter.ToInt32(hash, 0);
+
                                     if (pass != sb.ToString())
                                     {
                                         Console.WriteLine("[GDEError - 0001] Incorrect password");
@@ -764,6 +944,40 @@ namespace GDELib
                                     }
                                 }
                                 i--;
+                            }
+                            if (SVE3 == true && fRe == false)
+                            {
+                                //Console.WriteLine("-");
+                                controlData = reader1.ReadInt32();
+                                if (controlData != controlStruct + controlPassword)
+                                {
+                                    Console.WriteLine("[GDEError - 0003] Checksum violation");
+                                    return null;
+                                }
+                                fRe = true;
+                            }
+                            if (str == "l")
+                            {
+                                //Console.WriteLine("-");
+                                int k = reader.ReadInt32();
+                                //Console.WriteLine(k);
+                                int[,] masdata = DESM.ReadMatrix(reader1);
+
+                                for (int j = 0; j < masdata.GetLength(0); j++)
+                                {
+                                    DE.CreateCell(masdata[j, 0]);
+                                    if (i == NEl)
+                                    {
+                                        result = DE.YList[i].tip1;
+                                        NEl++;
+                                        if (NEl == all)
+                                            NEl = 0;
+                                        return result;
+                                    }
+                                    i++;
+                                }
+                                i--;
+                                //i += k - 1;
                             }
                             if (str == "integer" || str == "i")
                             {
@@ -1006,6 +1220,7 @@ namespace GDELib
                                     }
                                     i++;
                                 }
+                                i--;
                             }
                             if (types[i] == "integer" || types[i] == "i")
                             {
