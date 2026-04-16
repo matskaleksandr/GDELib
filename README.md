@@ -132,6 +132,7 @@ Console.WriteLine(restoredFilePath);
 - [docs/Version-Changes.md](docs/Version-Changes.md) — что важно знать о релизе `1.4.0`.
 - [docs/Examples.md](docs/Examples.md) — практические примеры.
 - [docs/FAQ.md](docs/FAQ.md) — ответы на частые вопросы.
+- [examples/README.md](examples/README.md) — runnable-примеры на реальных DLL релизов `0.1.4` и `1.4.0`.
 
 ## Короткий FAQ
 

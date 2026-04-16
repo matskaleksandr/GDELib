@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GDELib.Examples.V0_1_4", "GDELib.Examples.V0_1_4\GDELib.Examples.V0_1_4.csproj", "{52E29908-E09B-4FC0-BF41-CB78C7318C5A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GDELib.Examples.V1_4_0", "GDELib.Examples.V1_4_0\GDELib.Examples.V1_4_0.csproj", "{687D832D-1D85-49C1-9391-82B75CAD90C0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{52E29908-E09B-4FC0-BF41-CB78C7318C5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{52E29908-E09B-4FC0-BF41-CB78C7318C5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{52E29908-E09B-4FC0-BF41-CB78C7318C5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{52E29908-E09B-4FC0-BF41-CB78C7318C5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{687D832D-1D85-49C1-9391-82B75CAD90C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{687D832D-1D85-49C1-9391-82B75CAD90C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{687D832D-1D85-49C1-9391-82B75CAD90C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{687D832D-1D85-49C1-9391-82B75CAD90C0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
