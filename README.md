@@ -128,7 +128,7 @@ Console.WriteLine(restoredFilePath);
 - [docs/Public-API.md](docs/Public-API.md) — карта публичного API.
 - [docs/API-DEObject.md](docs/API-DEObject.md) — подробная документация по `DEObject`.
 - [docs/FileFormat.md](docs/FileFormat.md) — организация формата хранения в `1.4.0`.
-- [docs/Compression.md](docs/Compression.md) — как библиотека уменьшает объём данных и как это измерять.
+- [docs/Compression.md](docs/Compression.md) — как библиотека упаковывает данные и от чего зависит размер контейнера.
 - [docs/Version-Changes.md](docs/Version-Changes.md) — что важно знать о релизе `1.4.0`.
 - [docs/Examples.md](docs/Examples.md) — практические примеры.
 - [docs/FAQ.md](docs/FAQ.md) — ответы на частые вопросы.
